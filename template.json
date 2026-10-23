@@ -1,6 +1,6 @@
 {
-  "name": "dvp-settlement",
-  "description": "Settle a trade delivery-versus-payment on Hedera: a security leg and a stablecoin leg in one scheduled native transfer. No contracts.",
+  "name": "permissioned-security",
+  "description": "Issue a permissioned HTS security token whose KYC, freeze, wipe and pause keys are 2-of-3 threshold keys, and run a court-order freeze that one officer cannot carry alone. No contracts.",
   "create-scaffold-hbar": {
     "capabilities": {
       "frontend": [
