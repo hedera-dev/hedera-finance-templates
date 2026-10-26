@@ -105,6 +105,11 @@ export async function getMirrorSchedule(scheduleId: string): Promise<MirrorSched
     executedTimestamp: data.executed_timestamp ?? null,
     expirationTime: data.expiration_time ?? null,
     memo: data.memo ?? null,
-    signatures: (data.signatures ?? []).map((s: any) => ({ publicKeyPrefix: String(s.public_key_prefix ?? "") })),
+    // Mirror node sends `public_key_prefix` base64-encoded (like `signature` and `transaction_hash`
+    // elsewhere in this API) — decoded to hex here so every caller can compare it against an SDK
+    // `PublicKey`'s own hex bytes without needing to know that.
+    signatures: (data.signatures ?? []).map((s: any) => ({
+      publicKeyPrefix: s.public_key_prefix ? Buffer.from(String(s.public_key_prefix), "base64").toString("hex") : "",
+    })),
   };
 }
