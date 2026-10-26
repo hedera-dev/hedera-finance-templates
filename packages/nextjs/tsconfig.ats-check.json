@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".ats-check",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": [
+    "utils/ats/isin.ts",
+    "utils/ats/dates.ts",
+    "services/ats/clients.ts",
+    "tests/atsBond.test.ts"
+  ]
+}

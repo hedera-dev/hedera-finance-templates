@@ -31,7 +31,9 @@ const scaffoldConfig = {
 
   pollingInterval: 10000,
 
-  enableBurnerWallet: true,
+  // The bond desk's issuer signs on the server with HEDERA_OPERATOR_KEY; the only wallet a
+  // learner connects in the browser is their own (MetaMask/WalletConnect), so no burner wallet.
+  enableBurnerWallet: false,
 
   rpcOverrides: {
     [chains.hedera.id]: process.env.NEXT_PUBLIC_HEDERA_MAINNET_RPC_URL || "https://mainnet.hashio.io/api",

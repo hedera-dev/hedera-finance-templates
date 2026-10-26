@@ -9,7 +9,8 @@
     "format": "prettier --write . '!(node_modules|.next|contracts)/**/*'",
     "lint": "next lint",
     "serve": "next start",
-    "start": "next dev"
+    "start": "next dev",
+    "check-ats": "rm -rf .ats-check && tsc -p tsconfig.ats-check.json && node --test .ats-check/tests"
   },
   "dependencies": {
     "@heroicons/react": "^2.1.5",
