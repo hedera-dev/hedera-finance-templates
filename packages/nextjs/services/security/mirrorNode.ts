@@ -86,3 +86,25 @@ export async function getFirstNetworkNodeAccountId(): Promise<string> {
   if (!nodeAccountId) throw new Error("Could not read a consensus node id from the mirror node.");
   return nodeAccountId;
 }
+
+export type MirrorSchedule = {
+  scheduleId: string;
+  deleted: boolean;
+  executedTimestamp: string | null;
+  expirationTime: string | null;
+  memo: string | null;
+  signatures: { publicKeyPrefix: string }[];
+};
+
+export async function getMirrorSchedule(scheduleId: string): Promise<MirrorSchedule | null> {
+  const data = await mirrorFetch(`/api/v1/schedules/${scheduleId}`);
+  if (!data?.schedule_id) return null;
+  return {
+    scheduleId: data.schedule_id,
+    deleted: Boolean(data.deleted),
+    executedTimestamp: data.executed_timestamp ?? null,
+    expirationTime: data.expiration_time ?? null,
+    memo: data.memo ?? null,
+    signatures: (data.signatures ?? []).map((s: any) => ({ publicKeyPrefix: String(s.public_key_prefix ?? "") })),
+  };
+}

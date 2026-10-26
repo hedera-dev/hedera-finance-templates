@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SetupStep, useSecurityDesk } from "~~/app/_components/security/useSecurityDesk";
-import { hashscanAccount, hashscanToken, hashscanTransaction } from "~~/services/security/hashscan";
+import { hashscanAccount, hashscanSchedule, hashscanToken, hashscanTransaction } from "~~/services/security/hashscan";
 import type { DeskStateView, HolderId, OrderAction } from "~~/services/security/types";
 
 type HolderView = DeskStateView["holders"][number];
@@ -322,12 +322,7 @@ function PendingRow({
       className="approval-row flex flex-col gap-1 border border-base-300 rounded-lg p-3"
     >
       <div className="flex items-center justify-between gap-2">
-        <a
-          href={hashscanTransaction(row.scheduleId)}
-          target="_blank"
-          rel="noreferrer"
-          className="link text-xs font-mono"
-        >
+        <a href={hashscanSchedule(row.scheduleId)} target="_blank" rel="noreferrer" className="link text-xs font-mono">
           {row.scheduleId}
         </a>
         <span className="text-xs text-base-content/60">{row.signatureCount} of 3 officers signed</span>
@@ -405,7 +400,8 @@ function PendingPanel({
 }
 
 function HistoryRow({ row }: { row: HistoryView }) {
-  const href = hashscanTransaction(row.transactionId);
+  const href =
+    row.linkKind === "schedule" ? hashscanSchedule(row.transactionId) : hashscanTransaction(row.transactionId);
   return (
     <li className="history-entry flex flex-col gap-0.5 border-b border-base-300 py-2 text-sm last:border-none">
       <div className="flex items-center justify-between gap-2">

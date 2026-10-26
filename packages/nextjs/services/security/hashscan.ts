@@ -4,6 +4,7 @@ const BASE = "https://hashscan.io/testnet";
 
 export const hashscanAccount = (accountId: string) => `${BASE}/account/${accountId}`;
 export const hashscanToken = (tokenId: string) => `${BASE}/token/${tokenId}`;
+export const hashscanSchedule = (scheduleId: string) => `${BASE}/schedule/${scheduleId}`;
 
 /**
  * HashScan writes transaction ids as `shard.realm.num-seconds-nanos`, but the SDK's

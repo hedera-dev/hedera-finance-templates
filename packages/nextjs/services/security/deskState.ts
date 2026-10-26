@@ -26,21 +26,19 @@ export type TokenRecord = {
 };
 
 export type PendingApproval = {
-  /**
-   * Not a Hedera `ScheduleId` — the admin transaction's own `TransactionId` (as a string), chosen
-   * when Officer 1 proposes it. See the comment atop `actions.ts` for why: the five order types
-   * here cannot be carried by the Schedule Service on live Hedera today. This id is what the page
-   * shows under `data-schedule`, what `#pending-approvals` links to HashScan with, and what the
-   * same transaction keeps once Officer 2 (or the wallet) finishes and submits it.
-   */
+  /** A real Hedera `ScheduleId` (`0.0.<num>`) — see the comment atop `actions.ts` for what it schedules. */
   scheduleId: string;
   action: OrderAction;
   holderId: HolderId | null;
   reference: string;
   createdAtMs: number;
   expiresAtMs: number;
-  /** The frozen transaction, carrying Officer 1's signature, awaiting a second before it can submit. */
-  transactionBytes: Uint8Array;
+  /**
+   * Set only while a wallet-officer approval is in flight: the real admin transaction, frozen and
+   * already carrying Officer 1's signature, waiting on the wallet's. Cleared the moment that
+   * approval finishes (success or failure) — never anything this order's own lifecycle depends on.
+   */
+  walletDraftBytes?: Uint8Array;
 };
 
 export type HistoryEntry = {
@@ -50,12 +48,15 @@ export type HistoryEntry = {
   reference: string | null;
   result: string;
   transactionId: string;
-  linkKind: "transaction";
+  /** Whether `transactionId` is a transaction id or a schedule id — HashScan needs different paths. */
+  linkKind: "transaction" | "schedule";
 };
 
 type DeskState = {
   officers: OfficerRecord[];
   token: TokenRecord | null;
+  /** The account whose key is the 2-of-3 threshold KeyList, used only to carry schedules — see `actions.ts`. */
+  recordAccountId: string | null;
   holders: HolderRecord[];
   pending: PendingApproval[];
   history: HistoryEntry[];
@@ -63,10 +64,9 @@ type DeskState = {
 
 /**
  * Desk state lives in server memory, as the spec allows: officer and holder identities, the
- * token id, pending orders (including the partially-signed transaction bytes behind them — see
- * the comment atop `actions.ts`), and case references. It is never the source for anything the
- * page claims about the chain (KYC, frozen state, balances, supply, pause status) — the mirror
- * node is, on every read.
+ * token id, the record account id, pending orders, and case references. It is never the source
+ * for anything the page claims about the chain (KYC, frozen state, balances, supply, pause
+ * status, schedule signature counts) — the mirror node is, on every read.
  *
  * Anchored on `globalThis` because Next.js bundles each `app/api/.../route.ts` separately; a
  * plain module-level variable would not be shared across routes (or across dev-server reloads).
@@ -76,7 +76,7 @@ declare global {
 }
 
 function initialState(): DeskState {
-  return { officers: [], token: null, holders: [], pending: [], history: [] };
+  return { officers: [], token: null, recordAccountId: null, holders: [], pending: [], history: [] };
 }
 
 const state: DeskState = (globalThis.__securityDeskState ??= initialState());
@@ -95,6 +95,10 @@ export function getOfficer(id: OfficerId): OfficerRecord | undefined {
 
 export function setToken(token: TokenRecord) {
   state.token = token;
+}
+
+export function setRecordAccount(accountId: string) {
+  state.recordAccountId = accountId;
 }
 
 export function addHolder(holder: HolderRecord) {
@@ -116,6 +120,11 @@ export function getPending(scheduleId: string): PendingApproval | undefined {
 
 export function removePending(scheduleId: string) {
   state.pending = state.pending.filter(p => p.scheduleId !== scheduleId);
+}
+
+export function setWalletDraft(scheduleId: string, bytes: Uint8Array | undefined) {
+  const pending = getPending(scheduleId);
+  if (pending) pending.walletDraftBytes = bytes;
 }
 
 export function addHistory(entry: Omit<HistoryEntry, "id" | "timestampMs">) {

@@ -29,7 +29,7 @@ export type HolderView = {
 };
 
 export type PendingView = {
-  /** This order's identity (the admin transaction's own id — see `deskState.ts`), not a Hedera ScheduleId. */
+  /** A real Hedera ScheduleId (`0.0.<num>`) — see the comment atop `actions.ts` for what it schedules. */
   scheduleId: string;
   action: OrderAction;
   actionLabel: string;
@@ -46,7 +46,7 @@ export type HistoryView = {
   reference: string | null;
   result: string;
   transactionId: string;
-  linkKind: "transaction";
+  linkKind: "transaction" | "schedule";
 };
 
 export type WalletState = { kind: "not-connected" } | { kind: "not-officer" } | { kind: "officer3"; accountId: string };
