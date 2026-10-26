@@ -26,14 +26,21 @@ export type TokenRecord = {
 };
 
 export type PendingApproval = {
+  /**
+   * Not a Hedera `ScheduleId` — the admin transaction's own `TransactionId` (as a string), chosen
+   * when Officer 1 proposes it. See the comment atop `actions.ts` for why: the five order types
+   * here cannot be carried by the Schedule Service on live Hedera today. This id is what the page
+   * shows under `data-schedule`, what `#pending-approvals` links to HashScan with, and what the
+   * same transaction keeps once Officer 2 (or the wallet) finishes and submits it.
+   */
   scheduleId: string;
   action: OrderAction;
   holderId: HolderId | null;
   reference: string;
   createdAtMs: number;
   expiresAtMs: number;
-  /** The transaction id the wrapped transaction will execute under once the schedule triggers. */
-  scheduledTransactionId: string;
+  /** The frozen transaction, carrying Officer 1's signature, awaiting a second before it can submit. */
+  transactionBytes: Uint8Array;
 };
 
 export type HistoryEntry = {
@@ -43,7 +50,7 @@ export type HistoryEntry = {
   reference: string | null;
   result: string;
   transactionId: string;
-  linkKind: "transaction" | "schedule";
+  linkKind: "transaction";
 };
 
 type DeskState = {
@@ -56,9 +63,10 @@ type DeskState = {
 
 /**
  * Desk state lives in server memory, as the spec allows: officer and holder identities, the
- * token id, pending schedule ids, and case references. It is never the source for anything the
- * page claims about the chain (KYC, frozen state, balances, supply, pause status, signature
- * counts) — the mirror node is, on every read.
+ * token id, pending orders (including the partially-signed transaction bytes behind them — see
+ * the comment atop `actions.ts`), and case references. It is never the source for anything the
+ * page claims about the chain (KYC, frozen state, balances, supply, pause status) — the mirror
+ * node is, on every read.
  *
  * Anchored on `globalThis` because Next.js bundles each `app/api/.../route.ts` separately; a
  * plain module-level variable would not be shared across routes (or across dev-server reloads).
@@ -110,8 +118,11 @@ export function removePending(scheduleId: string) {
   state.pending = state.pending.filter(p => p.scheduleId !== scheduleId);
 }
 
-let historySeq = 0;
-
 export function addHistory(entry: Omit<HistoryEntry, "id" | "timestampMs">) {
-  state.history.unshift({ ...entry, id: `h${++historySeq}`, timestampMs: Date.now() });
+  // Anchored on the shared state (not a plain module variable) for the same reason `state` is:
+  // Next.js bundles each route separately, so a module-level counter would restart at 0 per route
+  // and hand out colliding ids (two different rows both `"h1"`) the moment two different API
+  // routes each add a history entry.
+  const id = `h${state.history.length + 1}`;
+  state.history.unshift({ ...entry, id, timestampMs: Date.now() });
 }

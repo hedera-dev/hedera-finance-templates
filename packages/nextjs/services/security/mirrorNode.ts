@@ -79,41 +79,10 @@ export async function getTokenRelationship(accountId: string, tokenId: string): 
   };
 }
 
-export type MirrorSchedule = {
-  scheduleId: string;
-  deleted: boolean;
-  executedTimestamp: string | null;
-  expirationTime: string | null;
-  memo: string | null;
-  signatures: { publicKeyPrefix: string }[];
-};
-
-export async function getMirrorSchedule(scheduleId: string): Promise<MirrorSchedule | null> {
-  const data = await mirrorFetch(`/api/v1/schedules/${scheduleId}`);
-  if (!data?.schedule_id) return null;
-  return {
-    scheduleId: data.schedule_id,
-    deleted: Boolean(data.deleted),
-    executedTimestamp: data.executed_timestamp ?? null,
-    expirationTime: data.expiration_time ?? null,
-    memo: data.memo ?? null,
-    signatures: (data.signatures ?? []).map((s: any) => ({ publicKeyPrefix: String(s.public_key_prefix ?? "") })),
-  };
-}
-
 /** A live consensus node's account id (e.g. `0.0.3`), for building a transaction client-side. */
 export async function getFirstNetworkNodeAccountId(): Promise<string> {
   const data = await mirrorFetch(`/api/v1/network/nodes?limit=1&order=asc`);
   const nodeAccountId = data?.nodes?.[0]?.node_account_id;
   if (!nodeAccountId) throw new Error("Could not read a consensus node id from the mirror node.");
   return nodeAccountId;
-}
-
-/** The result code of a (possibly scheduled) transaction, or null if the mirror node hasn't ingested it yet. */
-export async function getTransactionResult(transactionId: string): Promise<string | null> {
-  const [account, time] = transactionId.split("@");
-  const dashed = time ? `${account}-${time.replace(".", "-")}` : transactionId;
-  const data = await mirrorFetch(`/api/v1/transactions/${dashed}`);
-  const entry = data?.transactions?.find((t: any) => t.scheduled) ?? data?.transactions?.[0];
-  return entry?.result ?? null;
 }
