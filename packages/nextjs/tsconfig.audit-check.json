@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".audit-check",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": ["services/hcsAudit/entry.ts", "services/hcsAudit/verify.ts", "tests/auditChain.test.ts"]
+}

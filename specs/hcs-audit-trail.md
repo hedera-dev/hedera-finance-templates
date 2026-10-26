@@ -80,6 +80,15 @@ example a transfer before KYC is granted, or while the holder is frozen) is
 still logged, with the network's result code. While an action runs its control
 shows that it is working and cannot be pressed twice.
 
+**An action that happened is always logged.** The entry cannot be written first:
+it carries the action's transaction id and result, and neither exists until the
+action has run. So the entry is queued the moment the action returns, and the
+queue is what guarantees it lands — a failed submission, a declined signature or
+an unreachable mirror node are all retried until the entry is on the topic.
+Nothing discards a queued entry. Entries publish oldest-first, one at a time,
+and `prev` is read at the moment of publishing, so two entries can never be
+built on the same `prev` however many actions are in flight.
+
 **The trail.** `#trail` lists every entry on the topic, newest first, as rows
 with the class `trail-entry`. Each row shows the sequence number, the consensus
 timestamp as a readable local date and time (the raw timestamp on hover), the
@@ -99,7 +108,10 @@ account that is not an authorised publisher submit an entry to the topic.
   disconnecting instead
 - `#wallet-account-id` — the connected account id, linked to HashScan
 - `#authorize-publisher` — labelled `Authorise as publisher`
-- `#publishers` — the accounts currently allowed to publish to the topic
+- `#publishers` — the accounts currently allowed to publish to the topic. It
+  matches the topic's submit key exactly: authorising a second wallet adds it to
+  the key rather than replacing the first, so no account is listed that the
+  network would refuse, and none can publish that is not listed
 - `#wallet-state` — a sentence saying what to do next: connect, authorise, or
   perform an action
 
@@ -165,6 +177,13 @@ account. It decodes each message and checks:
   (64 zeros for sequence 1)
 - each entry's `tx` exists on the mirror node with the same result as the
   entry's `result`
+- that transaction is the kind the entry's event implies, against the entry's
+  own token and account: `issue` a `TOKENCREATION` of that token, `grant_kyc` a
+  `TOKENGRANTKYC`, `freeze` a `TOKENFREEZE`, `unfreeze` a `TOKENUNFREEZE`, and a
+  successful `transfer` a `CRYPTOTRANSFER` whose legs credit the entry's
+  `amount` of that token to that account. Without this an authorised publisher
+  could log `freeze` / `SUCCESS` against any successful transaction on the
+  network and the feed would still call the trail verified
 
 `#feed-status` is `VERIFIED` when every entry passes every check, `BROKEN` at
 the first failure — including a message that is not a valid entry — and
@@ -181,6 +200,11 @@ page reload, within about five seconds of them reaching the mirror node.
   and its audit entry is built on the server — with the correct `prev` — and
   handed to HashPack, which signs and submits the topic message as the payer.
   The trail and the feed show the wallet as the publisher of those entries.
+- *A wallet that does not publish the entry does not stop it being published.*
+  Declining the signature, a submission the network refuses, or a mirror node
+  that never shows the transaction all end the same way: the entry is still
+  queued, and the Issuer publishes it instead. The page says so rather than
+  reporting only an error.
 - *The operator account and the demo holder cannot be authorised*: authorising
   either is refused with a readable message, because the operator already
   publishes and the holder is the account being audited.
@@ -254,9 +278,24 @@ as described.
   (the holder, and the outsider used for the forgery attempt) are created with
   at most `1` HBAR each: a previous template gave each demo account 15 HBAR and
   repeated setups drained a 660 HBAR operator.
-- The server never trusts what the browser sends back after a wallet signs: it
-  builds the entry itself, checks the submitted transaction was paid by the
-  authorised wallet and succeeded, and only then advances the chain.
+- The server never trusts what the browser sends back after a wallet signs. The
+  entry it prepared is bound to the exact transaction id frozen into the
+  transaction the wallet was given, and only that id can confirm it. Before the
+  chain advances the server checks, from the mirror node: that the transaction
+  was a message submit to this topic, paid by the authorised wallet, and
+  succeeded, **and** that the bytes now on the topic are the bytes it prepared.
+  A successful transaction from that account is not enough on its own — an older
+  or different message from the same wallet would otherwise advance the chain to
+  a hash of bytes that are not on the topic, breaking every entry after it.
+- A submission keeps one transaction id across retries, so a response lost after
+  the network accepted it cannot publish the same entry twice: the retry is
+  refused as a duplicate, and the server asks the network what happened instead.
+- The queue lives in server memory with the rest of the desk, so a restart with
+  entries still queued loses them; the chain on the topic stays intact, and
+  `/regulator` still verifies what did land.
+- Every route is unauthenticated: anyone who can reach the server can spend the
+  operator account. That is the bargain of a localhost tutorial, and the reason
+  this app is not meant to be exposed.
 - `/regulator` fetches the mirror node directly from the browser; it must work
   with this app's server stopped, given a topic id.
 - Keeping the trail's state — topic and token ids, demo keys, the last entry's
