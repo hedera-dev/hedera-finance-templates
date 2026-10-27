@@ -19,6 +19,16 @@ export const wagmiConfig = createConfig({
       rpcFallbacks.push(http(rpcOverrideUrl));
     }
 
+    // A genuinely different provider, not just the same Hashio URl again under another name —
+    // viem's own built-in default for Hedera's chains IS the Hashio URL above, so without this
+    // a Hashio outage leaves wallet connections and signing with nothing else to try.
+    const rpcFallbackOverrideUrl = (scaffoldConfig.rpcFallbackOverrides as ScaffoldConfig["rpcFallbackOverrides"])?.[
+      chain.id
+    ];
+    if (rpcFallbackOverrideUrl) {
+      rpcFallbacks.push(http(rpcFallbackOverrideUrl));
+    }
+
     // Default public RPC for the chain (e.g. Hedera testnet hashio)
     rpcFallbacks.push(http());
 
