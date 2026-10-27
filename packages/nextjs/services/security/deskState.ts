@@ -34,11 +34,12 @@ export type PendingApproval = {
   createdAtMs: number;
   expiresAtMs: number;
   /**
-   * Set only while a wallet-officer approval is in flight: the real admin transaction, frozen and
-   * already carrying Officer 1's signature, waiting on the wallet's. Cleared the moment that
-   * approval finishes (success or failure) — never anything this order's own lifecycle depends on.
+   * Set only while a wallet-officer approval is in flight: when the desk handed the browser the
+   * schedule-signing transaction. The wallet's signature is what executes the record schedule, so
+   * this is how the poll knows an executed schedule means "mid-handshake", not "order carried
+   * out". Cleared when that approval finishes, either way.
    */
-  walletDraftBytes?: Uint8Array;
+  walletApprovalStartedAtMs?: number;
 };
 
 export type HistoryEntry = {
@@ -122,9 +123,9 @@ export function removePending(scheduleId: string) {
   state.pending = state.pending.filter(p => p.scheduleId !== scheduleId);
 }
 
-export function setWalletDraft(scheduleId: string, bytes: Uint8Array | undefined) {
+export function setWalletApprovalStarted(scheduleId: string, atMs: number | undefined) {
   const pending = getPending(scheduleId);
-  if (pending) pending.walletDraftBytes = bytes;
+  if (pending) pending.walletApprovalStartedAtMs = atMs;
 }
 
 export function addHistory(entry: Omit<HistoryEntry, "id" | "timestampMs">) {

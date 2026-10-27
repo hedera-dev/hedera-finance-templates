@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { hederaTestnet } from "viem/chains";
 import { useAccount } from "wagmi";
+import { useTransactor } from "~~/hooks/scaffold-hbar";
 import type { DeskStateView, HolderId, OrderAction } from "~~/services/security/types";
 
 export type SetupStepId = "officers" | "token" | "holders" | "distribute";
@@ -31,7 +33,8 @@ const postJson = (url: string, body: unknown = {}) =>
  * fresh view the route sends back, so the page never has to guess what changed.
  */
 export function useSecurityDesk() {
-  const { address, isConnected, connector } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
+  const transact = useTransactor();
   const [state, setState] = useState<DeskStateView | null>(null);
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>(initialSteps());
   const [isSettingUp, setIsSettingUp] = useState(false);
@@ -150,23 +153,25 @@ export function useSecurityDesk() {
   const approveAsWallet = useCallback(
     (scheduleId: string) =>
       withBusy(`wallet-${scheduleId}`, async () => {
-        if (!connector || !address) throw new Error("No wallet is connected.");
+        if (!isConnected) throw new Error("No wallet is connected.");
+        // The desk reads and writes Hedera testnet; from a wallet on any other network this
+        // transaction would go to a long-zero address that means nothing there.
+        if (chainId !== hederaTestnet.id) throw new Error("Switch the wallet to Hedera testnet to approve.");
+
         const prepared = await postJson(
           `/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/prepare`,
         );
-        const provider = (await connector.getProvider()) as { request: (args: unknown) => Promise<string> };
-        const signature = await provider.request({
-          method: "eth_sign",
-          params: [address, `0x${prepared.bodyBytesHex}`],
-        });
-        const data = await postJson(`/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/submit`, {
-          nodeAccountId: prepared.nodeAccountId,
-          transactionId: prepared.transactionId,
-          signatureHex: signature,
-        });
+        // An ordinary transaction the wallet prompts for, which puts Officer 3's own key on the
+        // schedule — `walletApproval.ts` explains why that is the only thing an EVM wallet can
+        // sign here. Gas is set rather than estimated: Hedera's relay estimates a system-contract
+        // call badly, and an underestimate spends the fee for nothing.
+        const hash = await transact({ to: prepared.to, data: prepared.data, gas: 800_000n });
+        if (!hash) throw new Error("The wallet did not sign the approval.");
+
+        const data = await postJson(`/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/submit`);
         setState(data.state);
       }),
-    [withBusy, connector, address],
+    [withBusy, isConnected, chainId, transact],
   );
 
   return {

@@ -88,7 +88,8 @@ one, the result (`SUCCESS` or the network's code, e.g.
 button. `#wallet-state` says in a sentence what the connected account is to this
 desk: not connected, connected but not an officer (it was connected after
 setup), or Officer 3. When it is Officer 3, `#approve-as-wallet` appears on each
-pending row and the wallet signs the approval itself.
+pending row and the wallet signs the approval itself — one transaction it is
+prompted for and pays for, which puts its own key on that order's schedule.
 
 ## Behaviour
 
@@ -201,7 +202,8 @@ wallet. It is still part of the feature and must be implemented as described.
 
 - Native HTS only. No Solidity package, no contract deployed by this app, and no
   contract call: the SDK talks to the token service and the schedule service
-  directly, and the mirror node answers every read.
+  directly, and the mirror node answers every read. The one exception is the
+  wallet officer's own approval, which has no other route — see below.
 - The threshold key is built once, at token creation, with
   `new KeyList([officer1, officer2, officer3], 2)` — a threshold of 2 over three
   public keys — and given to the token as `kycKey`, `freezeKey`, `wipeKey`,
@@ -232,11 +234,30 @@ wallet. It is still part of the feature and must be implemented as described.
   new transaction id, full validity window — signs it with Officer 1 plus the
   officer who approved, and executes it. The record account's memo carries no
   weight of its own; it exists so the pending state is genuine.
-- The record schedule is always signed by Officers 1 and 2, whoever approved,
-  because the desk holds both of those keys and a wallet cannot be asked for a
-  second signature mid-handshake. The approving officer's signature is on the
-  admin transaction instead, which is the id `#history` links. Say who approved
-  in the history line; do not imply the schedule shows it.
+- The admin transaction is always signed by Officers 1 and 2, whoever approved,
+  because those are the two keys the desk holds. Say who approved in the history
+  line, and where their signature is; do not imply the admin transaction carries
+  a key the desk cannot produce.
+- **An EVM wallet cannot sign a Hedera transaction body.** Hedera validates an
+  ECDSA signature as secp256k1 over `keccak256(bodyBytes)`, raw; every signing
+  method an EVM wallet exposes frames what it signs, and `eth_sign` is both
+  framed and removed from MetaMask — asked for it over WalletConnect, a wallet
+  never answers at all, which is a button that spins forever with no prompt.
+  So the wallet officer approves the only way an EVM wallet can: HRC-755's
+  parameterless `signSchedule()`, sent as an ordinary transaction to the
+  schedule's own long-zero address, which makes the network add the sender's key
+  to that schedule. That one call to a system contract is the exception to "no
+  contract call" above, and it buys a genuine wallet signature: the mirror node
+  shows Officer 3's key prefix on the schedule and `#pending-approvals` counts
+  it. Putting the wallet's signature on the admin transaction instead would take
+  a Hedera-native wallet and HIP-820 `hedera_signTransaction`, which is a second
+  connector stack and no use to a MetaMask user.
+- A wallet approval is two calls with the wallet prompt between them, so the
+  order must survive that gap: its schedule executes as soon as the wallet's
+  signature lands, while the admin transaction has not run yet. A poll that sees
+  that executed schedule must not retire the order or write `SUCCESS` to
+  history — but an approval abandoned at the prompt must not pin the order open
+  for ever either.
 - **The separation of duties here is organisational, not cryptographic.** The
   network really does require two of the three keys — the token's keys are a
   2-of-3 `KeyList`, and one signature genuinely will not do. But this desk holds

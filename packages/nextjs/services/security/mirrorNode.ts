@@ -79,14 +79,6 @@ export async function getTokenRelationship(accountId: string, tokenId: string): 
   };
 }
 
-/** A live consensus node's account id (e.g. `0.0.3`), for building a transaction client-side. */
-export async function getFirstNetworkNodeAccountId(): Promise<string> {
-  const data = await mirrorFetch(`/api/v1/network/nodes?limit=1&order=asc`);
-  const nodeAccountId = data?.nodes?.[0]?.node_account_id;
-  if (!nodeAccountId) throw new Error("Could not read a consensus node id from the mirror node.");
-  return nodeAccountId;
-}
-
 export type MirrorSchedule = {
   scheduleId: string;
   deleted: boolean;

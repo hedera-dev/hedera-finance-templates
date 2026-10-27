@@ -98,7 +98,10 @@ function SetupPanel({
 
 function describeWallet(wallet: DeskStateView["wallet"]): string {
   if (wallet.kind === "officer3") {
-    return `This wallet is Officer 3 for this desk (${wallet.accountId}) — it can approve pending orders.`;
+    return (
+      `This wallet is Officer 3 for this desk (${wallet.accountId}) — it can approve a pending order by signing ` +
+      `for it in the wallet, which puts its own key on that order's schedule. It pays that one small fee itself.`
+    );
   }
   if (wallet.kind === "unknown") {
     return "A wallet is connected, but the desk could not reach the mirror node to check its role just now.";

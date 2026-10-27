@@ -8,5 +8,10 @@
     "incremental": false,
     "plugins": []
   },
-  "include": ["services/security/keys.ts", "tests/securityKeys.test.ts"]
+  "include": [
+    "services/security/keys.ts",
+    "services/security/hrc755.ts",
+    "tests/securityKeys.test.ts",
+    "tests/walletApproval.test.ts"
+  ]
 }

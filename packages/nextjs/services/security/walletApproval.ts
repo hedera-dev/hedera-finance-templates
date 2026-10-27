@@ -1,23 +1,30 @@
-import { AccountId, Transaction, TransactionId } from "@hiero-ledger/sdk";
-import { buildFreshAdminTransaction, executeApprovedOrder, requireOperator } from "~~/services/security/actions";
-import { getDeskState, getOfficer, getPending, setWalletDraft } from "~~/services/security/deskState";
-import { getFirstNetworkNodeAccountId } from "~~/services/security/mirrorNode";
-import { getSdkClient } from "~~/services/security/sdkClient";
+import { approveOrder } from "~~/services/security/actions";
+import { getOfficer, getPending, setWalletApprovalStarted } from "~~/services/security/deskState";
+import { SIGN_SCHEDULE_SELECTOR, scheduleEvmAddress } from "~~/services/security/hrc755";
 
 /**
- * Lets the connected wallet, when it is Officer 3, approve a pending order by signing with its
- * own key instead of a server-held one. The desk never has this key, so the flow is a two-step
- * handshake: `prepare` builds the same fresh real admin transaction `approveOrder` would (current
- * balance, current moment — see the comment atop `actions.ts`), has Officer 1 sign it, and hands
- * back the signable body bytes for the single node it targets; `submit` rebuilds the identical
- * transaction from those bytes, attaches the signature the wallet produced, and hands it to
- * `executeApprovedOrder`, which completes the record schedule and executes it exactly as
- * `approveOrder` does for Officer 2.
+ * Lets the connected wallet, when it is Officer 3, put its own key on a pending order instead of
+ * the desk leaning on a server-held one for everything.
  *
- * Hedera signs an ECDSA key over `keccak256(bodyBytes)` with no other framing — the same thing
- * the (legacy, now widely disabled) `eth_sign` JSON-RPC method does. A wallet that still allows
- * raw `eth_sign` produces a signature that validates here; most modern wallets refuse it, which
- * is why this path is not part of what the checker verifies.
+ * It cannot do that by signing the admin transaction. Hedera validates an ECDSA signature as
+ * secp256k1 over `keccak256(bodyBytes)`, raw and unframed, and every signing method an EVM wallet
+ * exposes frames what it signs: `eth_sign` and `personal_sign` with the EIP-191 prefix,
+ * `eth_signTypedData` with its own. `eth_sign` — which this flow used to ask for — is also removed
+ * from MetaMask outright, and over WalletConnect an unrecognised method is simply never answered,
+ * so the button sat spinning with no prompt in the wallet and nothing to cancel. An EVM wallet can
+ * only ever sign an Ethereum transaction.
+ *
+ * HRC-755 makes an Ethereum transaction enough: `prepare` hands the browser the schedule's own
+ * address and the `signSchedule()` selector, the wallet prompts for that transaction like any
+ * other, and the network adds Officer 3's key to the record schedule — the mirror node shows its
+ * key prefix there and `#pending-approvals` counts it. `submit` then runs the real admin
+ * transaction, exactly as "Approve as Officer 2" does.
+ *
+ * ponytail: so a wallet approval is genuinely the wallet's signature, but on the schedule, while
+ * the admin transaction stays Officers 1 + 2. Moving it onto the admin transaction needs a
+ * Hedera-native wallet and HIP-820 `hedera_signTransaction` (`@hashgraph/hedera-wallet-connect`,
+ * HashPack or Kabila) — a second connector stack beside the scaffold's RainbowKit, and no help at
+ * all to a MetaMask user. Worth it if the template's point becomes who signs what.
  */
 
 function requireWalletOfficer() {
@@ -26,54 +33,23 @@ function requireWalletOfficer() {
   return officer3;
 }
 
-export async function prepareWalletApproval(scheduleId: string) {
-  const pending = getPending(scheduleId);
-  if (!pending) throw new Error("This desk did not create that order.");
+export function prepareWalletApproval(scheduleId: string) {
+  if (!getPending(scheduleId)) throw new Error("This desk did not create that order.");
   requireWalletOfficer();
-  const operator = await requireOperator();
-  const state = getDeskState();
-  if (!state.token) throw new Error("The token is not set up yet.");
-  const officer1 = getOfficer("1");
-  if (!officer1?.privateKey) throw new Error("Officer 1 is not set up yet.");
 
-  const client = await getSdkClient();
-  const nodeAccountId = await getFirstNetworkNodeAccountId();
-  const transactionId = TransactionId.generate(operator.accountId);
+  // Claimed before the wallet is asked, because the wallet's signature is what executes the record
+  // schedule: without this, the poll that runs while the wallet prompt is open would see an
+  // executed schedule and retire the order as done before the admin transaction had run at all.
+  setWalletApprovalStarted(scheduleId, Date.now());
 
-  const inner = await buildFreshAdminTransaction(pending, state.token.tokenId);
-  const frozen = inner
-    .setTransactionId(transactionId)
-    .setNodeAccountIds([AccountId.fromString(nodeAccountId)])
-    .freeze();
-  await frozen.sign(officer1.privateKey);
-
-  // Held until `submit` arrives with the wallet's signature over these exact bytes.
-  setWalletDraft(scheduleId, frozen.toBytes());
-
-  const [signable] = frozen.signableNodeBodyBytesList;
-  return {
-    nodeAccountId,
-    transactionId: transactionId.toString(),
-    bodyBytesHex: Buffer.from(signable.signableTransactionBodyBytes).toString("hex"),
-  };
+  return { to: scheduleEvmAddress(scheduleId), data: SIGN_SCHEDULE_SELECTOR };
 }
 
-export async function submitWalletApproval(
-  scheduleId: string,
-  _nodeAccountId: string,
-  _transactionId: string,
-  signatureHex: string,
-) {
-  const pending = getPending(scheduleId);
-  if (!pending) throw new Error("This desk did not create that order.");
-  const officer3 = requireWalletOfficer();
-  if (!pending.walletDraftBytes) throw new Error("Call prepare before submit.");
-
-  const tx = Transaction.fromBytes(pending.walletDraftBytes);
-  // Hedera's compact ECDSA signature is 64 bytes (r || s); `eth_sign` returns 65 (r || s || v).
-  const signatureBytes = Buffer.from(signatureHex.replace(/^0x/, ""), "hex").subarray(0, 64);
-  tx.addSignature(officer3.publicKey, signatureBytes);
-  setWalletDraft(scheduleId, undefined);
-
-  return executeApprovedOrder(scheduleId, tx);
+export async function submitWalletApproval(scheduleId: string) {
+  requireWalletOfficer();
+  try {
+    return await approveOrder(scheduleId, "2", "the wallet, Officer 3, which signed the schedule itself");
+  } finally {
+    setWalletApprovalStarted(scheduleId, undefined);
+  }
 }

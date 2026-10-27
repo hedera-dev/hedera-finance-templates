@@ -40,6 +40,7 @@ import {
   setToken,
 } from "~~/services/security/deskState";
 import { countDistinctSigners, publicKeyFromMirrorKey } from "~~/services/security/keys";
+import type { MirrorSchedule } from "~~/services/security/mirrorNode";
 import { getMirrorAccount, getMirrorSchedule, getTokenRelationship } from "~~/services/security/mirrorNode";
 import { getOperatorConfig } from "~~/services/security/operator";
 import { getSdkClient } from "~~/services/security/sdkClient";
@@ -81,6 +82,8 @@ import { getSdkClient } from "~~/services/security/sdkClient";
 
 const ORDER_EXPIRY_MS = 5 * 60 * 1000;
 const SEND_AMOUNT = 10;
+/** How long a wallet approval that has been handed to the browser keeps its order off the poll's hands. */
+const WALLET_APPROVAL_WINDOW_MS = 2 * 60 * 1000;
 
 export async function requireOperator() {
   const result = await getOperatorConfig();
@@ -442,7 +445,13 @@ async function finalizeApproval(pending: PendingApproval, tx: Transaction, clien
   return { scheduleId: pending.scheduleId, result, transactionId };
 }
 
-export async function approveOrder(scheduleId: string, officerId: OfficerId) {
+/**
+ * `approvedBy` is what `#history` says about this approval. It defaults to the officer whose key
+ * signs the admin transaction here, and the wallet path passes its own wording: that approval's
+ * signature is the wallet's, on the record schedule, with Officer 2's key carrying the admin
+ * transaction as always — see `walletApproval.ts`.
+ */
+export async function approveOrder(scheduleId: string, officerId: OfficerId, approvedBy = `Officer ${officerId}`) {
   const pending = getPending(scheduleId);
   if (!pending) throw new Error("This desk did not create that order.");
   const state = getDeskState();
@@ -464,20 +473,7 @@ export async function approveOrder(scheduleId: string, officerId: OfficerId) {
 
   await completeRecordSchedule(client, scheduleId);
 
-  return finalizeApproval(pending, frozen, client, "Officer 2");
-}
-
-/**
- * Lets the wallet-officer approval path finish outside this module: `walletApproval.ts` builds the
- * same fresh real admin transaction, has the wallet add Officer 3's signature to it, and hands the
- * fully-signed `tx` here to complete the record schedule and execute it, identically to `approveOrder`.
- */
-export async function executeApprovedOrder(scheduleId: string, tx: Transaction) {
-  const pending = getPending(scheduleId);
-  if (!pending) throw new Error("This desk did not create that order.");
-  const client = await getSdkClient();
-  await completeRecordSchedule(client, scheduleId);
-  return finalizeApproval(pending, tx, client, "the wallet, Officer 3");
+  return finalizeApproval(pending, frozen, client, approvedBy);
 }
 
 /** "Delete": withdraws the real record-account schedule, signed by Officer 1, who holds its admin key. */
@@ -541,6 +537,19 @@ async function runReconcile(): Promise<Map<string, PendingLive>> {
       continue;
     }
 
+    // A wallet approval in flight owns this order until it finishes. Its wallet signature is what
+    // executes the record schedule, which happens while the page is still polling, so the two
+    // checks below would otherwise retire the order — one of them writing SUCCESS to history —
+    // before the admin transaction the order actually consists of had run. Time-bounded, so an
+    // approval the user walked away from mid-prompt still retires on the next poll after that.
+    if (isWalletApprovalInFlight(pending)) {
+      stillPending.set(pending.scheduleId, {
+        signatureCount: signatureCountOf(schedule),
+        expiresAtMs: pending.expiresAtMs,
+      });
+      continue;
+    }
+
     if (schedule?.executedTimestamp) {
       // Normally `approveOrder`/the wallet flow removes this and logs the real admin transaction's
       // own result before the schedule is ever seen executed here; this is a fallback only.
@@ -567,15 +576,27 @@ async function runReconcile(): Promise<Map<string, PendingLive>> {
       continue;
     }
 
-    // A schedule the mirror node could not answer for keeps its place in the list — the order is
-    // still pending — but its signature count is unknown rather than assumed to be one.
-    const signatureCount = schedule
-      ? countOfficerSignatures(schedule.signatures.map(s => s.publicKeyPrefix))
-      : ("unknown" as const);
-    stillPending.set(pending.scheduleId, { signatureCount, expiresAtMs: pending.expiresAtMs });
+    stillPending.set(pending.scheduleId, {
+      signatureCount: signatureCountOf(schedule),
+      expiresAtMs: pending.expiresAtMs,
+    });
   }
 
   return stillPending;
+}
+
+function isWalletApprovalInFlight(pending: PendingApproval): boolean {
+  if (pending.walletApprovalStartedAtMs === undefined) return false;
+  return Date.now() - pending.walletApprovalStartedAtMs < WALLET_APPROVAL_WINDOW_MS;
+}
+
+/**
+ * A schedule the mirror node could not answer for keeps its place in the list — the order is
+ * still pending — but its signature count is unknown rather than assumed to be one.
+ */
+function signatureCountOf(schedule: MirrorSchedule | null): number | "unknown" {
+  if (!schedule) return "unknown";
+  return countOfficerSignatures(schedule.signatures.map(s => s.publicKeyPrefix));
 }
 
 /**
@@ -598,4 +619,4 @@ function countOfficerSignatures(prefixesHex: string[]): number {
   return countDistinctSigners(officerKeys, prefixesHex);
 }
 
-export { actionLabel, buildFreshAdminTransaction };
+export { actionLabel };

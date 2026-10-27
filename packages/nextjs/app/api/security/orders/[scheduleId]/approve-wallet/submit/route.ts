@@ -3,17 +3,11 @@ import { errorResponse } from "~~/services/security/apiError";
 import { buildDeskStateView } from "~~/services/security/deskView";
 import { submitWalletApproval } from "~~/services/security/walletApproval";
 
-/** Second half: attaches the wallet's own signature to the real admin transaction and executes it. */
-export async function POST(req: Request, { params }: { params: Promise<{ scheduleId: string }> }) {
+/** Second half: the wallet's signature is on the schedule, so run the real admin transaction. */
+export async function POST(_req: Request, { params }: { params: Promise<{ scheduleId: string }> }) {
   const { scheduleId } = await params;
-  const body = await req.json().catch(() => ({}));
-  const { nodeAccountId, transactionId, signatureHex } = body ?? {};
-  if (typeof nodeAccountId !== "string" || typeof transactionId !== "string" || typeof signatureHex !== "string") {
-    return errorResponse(new Error("Missing node id, transaction id, or signature."));
-  }
-
   try {
-    await submitWalletApproval(decodeURIComponent(scheduleId), nodeAccountId, transactionId, signatureHex);
+    await submitWalletApproval(decodeURIComponent(scheduleId));
     const state = await buildDeskStateView();
     return NextResponse.json({ ok: true, state });
   } catch (error) {
