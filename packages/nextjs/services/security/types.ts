@@ -35,7 +35,8 @@ export type PendingView = {
   actionLabel: string;
   holderLabel: string | null;
   reference: string;
-  signatureCount: number;
+  /** "unknown" when the schedule could not be read just now; never a guessed number. */
+  signatureCount: number | "unknown";
   expiresAtMs: number;
 };
 
@@ -49,7 +50,12 @@ export type HistoryView = {
   linkKind: "transaction" | "schedule";
 };
 
-export type WalletState = { kind: "not-connected" } | { kind: "not-officer" } | { kind: "officer3"; accountId: string };
+/** `unknown` is a connected wallet whose role the desk could not check, which is not the same as not being an officer. */
+export type WalletState =
+  | { kind: "not-connected" }
+  | { kind: "not-officer" }
+  | { kind: "unknown" }
+  | { kind: "officer3"; accountId: string };
 
 export type DeskStateView = {
   config: ConfigStatus;

@@ -14,6 +14,11 @@ const Home: NextPage = () => {
           not by contract code. Every admin action here needs <strong>two of three</strong> compliance officers, because
           each key is a 2-of-3 threshold key and one signature is never enough.
         </p>
+        <p className="text-sm text-base-content/60 m-0 max-w-3xl">
+          The network enforces the two signatures. The <em>separation</em> is a demo: this desk holds Officers 1 and 2,
+          so it can produce both. In production those keys live with different people, or in different custody — that is
+          what turns a rule the network enforces into a control over the people who use it.
+        </p>
       </header>
 
       <SecurityDesk />

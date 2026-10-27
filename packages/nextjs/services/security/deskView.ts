@@ -56,15 +56,20 @@ async function buildHolderView(id: "A" | "B", label: string, accountId: string, 
 async function buildWalletState(walletEvmAddress?: string): Promise<WalletState> {
   if (!walletEvmAddress) return { kind: "not-connected" };
   const officer3 = getOfficer("3");
+  // A desk with no wallet officer can answer this without the mirror node at all.
+  if (!officer3?.isWallet || !officer3.accountId) return { kind: "not-officer" };
   try {
     const account = await getMirrorAccount(walletEvmAddress);
-    if (account && officer3?.isWallet && officer3.accountId === account.accountId) {
-      return { kind: "officer3", accountId: account.accountId };
-    }
+    if (!account) return { kind: "not-officer" };
+    return account.accountId === officer3.accountId
+      ? { kind: "officer3", accountId: account.accountId }
+      : { kind: "not-officer" };
   } catch {
-    // fall through: a wallet is connected, but the desk can't confirm its role right now
+    // The desk could not check. Saying "not an officer" would be a claim about this wallet
+    // that a failed read has not made, and it hides the approve control from the one account
+    // that may be able to use it.
+    return { kind: "unknown" };
   }
-  return { kind: "not-officer" };
 }
 
 /** Builds the single consolidated view the page polls. Every chain fact here comes fresh from the mirror node. */

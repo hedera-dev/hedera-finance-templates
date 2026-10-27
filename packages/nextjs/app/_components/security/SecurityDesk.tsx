@@ -100,6 +100,9 @@ function describeWallet(wallet: DeskStateView["wallet"]): string {
   if (wallet.kind === "officer3") {
     return `This wallet is Officer 3 for this desk (${wallet.accountId}) — it can approve pending orders.`;
   }
+  if (wallet.kind === "unknown") {
+    return "A wallet is connected, but the desk could not reach the mirror node to check its role just now.";
+  }
   if (wallet.kind === "not-officer") {
     return "A wallet is connected, but it was not connected before setup, so it can watch this desk but cannot approve orders.";
   }
@@ -325,7 +328,11 @@ function PendingRow({
         <a href={hashscanSchedule(row.scheduleId)} target="_blank" rel="noreferrer" className="link text-xs font-mono">
           {row.scheduleId}
         </a>
-        <span className="text-xs text-base-content/60">{row.signatureCount} of 3 officers signed</span>
+        <span className="text-xs text-base-content/60">
+          {row.signatureCount === "unknown"
+            ? "signatures could not be read just now"
+            : `${row.signatureCount} of 3 officers signed`}
+        </span>
       </div>
       <p className="text-sm m-0">{row.actionLabel}</p>
       <p className="text-xs text-base-content/60 m-0">

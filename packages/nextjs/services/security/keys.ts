@@ -31,3 +31,23 @@ export function isThresholdKey(mirrorKey: MirrorKey, threshold: number, total: n
     return false;
   }
 }
+
+/**
+ * How many distinct signers a schedule's key prefixes account for.
+ *
+ * A signature map carries a *prefix* of each signing public key, so the match is
+ * one-directional: the key starts with the prefix. A prefix short enough to fit two of the
+ * officers identifies neither — counting it against both would report more approvals than the
+ * schedule carries, and this number must never be wrong in that direction.
+ */
+export function countDistinctSigners(signerKeysHex: string[], prefixesHex: string[]): number {
+  const signed = new Set<number>();
+  for (const prefix of prefixesHex) {
+    if (!prefix) continue;
+    const matches = signerKeysHex
+      .map((hex, index) => ({ hex, index }))
+      .filter(candidate => candidate.hex.startsWith(prefix));
+    if (matches.length === 1) signed.add(matches[0].index);
+  }
+  return signed.size;
+}

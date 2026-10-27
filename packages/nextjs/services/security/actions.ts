@@ -39,7 +39,7 @@ import {
   setRecordAccount,
   setToken,
 } from "~~/services/security/deskState";
-import { publicKeyFromMirrorKey } from "~~/services/security/keys";
+import { countDistinctSigners, publicKeyFromMirrorKey } from "~~/services/security/keys";
 import { getMirrorAccount, getMirrorSchedule, getTokenRelationship } from "~~/services/security/mirrorNode";
 import { getOperatorConfig } from "~~/services/security/operator";
 import { getSdkClient } from "~~/services/security/sdkClient";
@@ -411,7 +411,13 @@ async function buildFreshAdminTransaction(pending: PendingApproval, tokenId: str
  * way. Shared by `approveOrder` and the wallet-officer approval, which arrive at an equally-signed
  * `tx` by different means (a server-held key vs. a signature the wallet produced itself).
  */
-async function finalizeApproval(pending: PendingApproval, tx: Transaction, client: Client) {
+/**
+ * `approvedBy` is recorded because the record schedule cannot show it: that schedule is always
+ * carried by Officers 1 and 2 (the desk holds both keys), whoever approved. The signature that
+ * actually matters is on the admin transaction this logs the id of — Officer 1 plus whichever
+ * officer approved, which for a wallet approval is the wallet's own.
+ */
+async function finalizeApproval(pending: PendingApproval, tx: Transaction, client: Client, approvedBy: string) {
   removePending(pending.scheduleId);
   const holder = pending.holderId ? getHolder(pending.holderId) : null;
   const label = actionLabel(pending.action, holder?.label ?? null);
@@ -426,7 +432,13 @@ async function finalizeApproval(pending: PendingApproval, tx: Transaction, clien
     result = statusCodeOf(error) ?? (error instanceof Error ? error.message : "UNKNOWN_ERROR");
   }
 
-  addHistory({ action: label, reference: pending.reference, result, transactionId, linkKind: "transaction" });
+  addHistory({
+    action: `${label} (approved by ${approvedBy})`,
+    reference: pending.reference,
+    result,
+    transactionId,
+    linkKind: "transaction",
+  });
   return { scheduleId: pending.scheduleId, result, transactionId };
 }
 
@@ -452,7 +464,7 @@ export async function approveOrder(scheduleId: string, officerId: OfficerId) {
 
   await completeRecordSchedule(client, scheduleId);
 
-  return finalizeApproval(pending, frozen, client);
+  return finalizeApproval(pending, frozen, client, "Officer 2");
 }
 
 /**
@@ -465,7 +477,7 @@ export async function executeApprovedOrder(scheduleId: string, tx: Transaction) 
   if (!pending) throw new Error("This desk did not create that order.");
   const client = await getSdkClient();
   await completeRecordSchedule(client, scheduleId);
-  return finalizeApproval(pending, tx, client);
+  return finalizeApproval(pending, tx, client, "the wallet, Officer 3");
 }
 
 /** "Delete": withdraws the real record-account schedule, signed by Officer 1, who holds its admin key. */
@@ -498,9 +510,26 @@ export async function deleteOrder(scheduleId: string) {
  * some other way), one whose expiry has passed without a second signature is dropped exactly as
  * the schedule itself would be, and an open one reports how many officers have genuinely signed.
  */
-export async function reconcilePending(): Promise<Map<string, { signatureCount: number; expiresAtMs: number }>> {
+type PendingLive = { signatureCount: number | "unknown"; expiresAtMs: number };
+
+/**
+ * One reconcile at a time.
+ *
+ * `reconcilePending` retires orders and writes history, and it runs inside the view the page
+ * polls — which every mutating route also rebuilds. Two of them in flight both `await` the
+ * mirror node before either removes anything, so both can see the same order expired and both
+ * record it. Callers that arrive mid-flight get the result of the one already running.
+ */
+let reconciling: Promise<Map<string, PendingLive>> | null = null;
+
+export function reconcilePending(): Promise<Map<string, PendingLive>> {
+  if (!reconciling) reconciling = runReconcile().finally(() => (reconciling = null));
+  return reconciling;
+}
+
+async function runReconcile(): Promise<Map<string, PendingLive>> {
   const state = getDeskState();
-  const stillPending = new Map<string, { signatureCount: number; expiresAtMs: number }>();
+  const stillPending = new Map<string, PendingLive>();
 
   for (const pending of [...state.pending]) {
     const schedule = await getMirrorSchedule(pending.scheduleId).catch(() => null);
@@ -538,7 +567,11 @@ export async function reconcilePending(): Promise<Map<string, { signatureCount: 
       continue;
     }
 
-    const signatureCount = schedule ? countOfficerSignatures(schedule.signatures.map(s => s.publicKeyPrefix)) : 1;
+    // A schedule the mirror node could not answer for keeps its place in the list — the order is
+    // still pending — but its signature count is unknown rather than assumed to be one.
+    const signatureCount = schedule
+      ? countOfficerSignatures(schedule.signatures.map(s => s.publicKeyPrefix))
+      : ("unknown" as const);
     stillPending.set(pending.scheduleId, { signatureCount, expiresAtMs: pending.expiresAtMs });
   }
 
@@ -550,16 +583,19 @@ export async function reconcilePending(): Promise<Map<string, { signatureCount: 
  * prefix in both directions since the SDK stores the key bytes it was given — in practice the
  * full key for ED25519/ECDSA — and mirror node echoes that back as `public_key_prefix`.
  */
+/**
+ * How many distinct officers signed, by matching the signature map's key prefixes.
+ *
+ * A prefix is a prefix of the public key, so the match is one-directional. And a prefix short
+ * enough to fit two of the three officers identifies neither: counting it against both would
+ * report more approvals than the schedule actually carries, which is the one direction this
+ * number must never be wrong in.
+ */
 function countOfficerSignatures(prefixesHex: string[]): number {
-  let count = 0;
-  for (const officer of getDeskState().officers) {
-    const officerHex = Buffer.from(officer.publicKey.toBytesRaw()).toString("hex");
-    const matched = prefixesHex.some(
-      prefix => prefix.length > 0 && (officerHex.startsWith(prefix) || prefix.startsWith(officerHex)),
-    );
-    if (matched) count++;
-  }
-  return count;
+  const officerKeys = getDeskState().officers.map(officer =>
+    Buffer.from(officer.publicKey.toBytesRaw()).toString("hex"),
+  );
+  return countDistinctSigners(officerKeys, prefixesHex);
 }
 
 export { actionLabel, buildFreshAdminTransaction };

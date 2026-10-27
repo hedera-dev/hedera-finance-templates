@@ -103,16 +103,23 @@ Holder B's balance stays `0`, and the refusal appears in `#history` and as a
 readable message on the page.
 
 **One officer is not enough.** `Propose as Officer 1` creates a *scheduled*
-transaction carrying the order, signed by Officer 1 alone. The order does not
-take effect: the holder is not frozen, the token is not paused, and the mirror
-node shows the schedule as not executed. The pending row says one of three
-signatures is in.
+transaction for the order, signed by Officer 1 alone. The order does not take
+effect: the holder is not frozen, the token is not paused, and the mirror node
+shows the schedule as not executed. The pending row says one of three
+signatures is in, or that the count could not be read.
 
-**The second officer's signature executes it.** `Approve as Officer 2` signs the
-same schedule. The network now has two of the three keys, executes the
-transaction, and the effect appears: the holder's `Frozen` state flips, the
-holding is wiped, or the token pauses. The row leaves `#pending-approvals` and
-the action lands in `#history` with the schedule's own transaction id.
+**The second officer's signature carries it out.** `Approve as Officer 2` signs
+the same schedule. The network now has two of the three keys and the order goes
+through: the holder's `Frozen` state flips, the holding is wiped, or the token
+pauses. The row leaves `#pending-approvals` and the action lands in `#history`
+with the id of the admin transaction that did it, naming the officer who
+approved — which the schedule itself cannot show, for the reason in the
+constraints.
+
+**An order that fails on the way through is recorded, not retried.** If the
+admin transaction is refused — the token is already paused, say — the order
+leaves `#pending-approvals` and `#history` carries the network's code against
+it. It is not held open for another attempt: propose it again.
 
 **A frozen holder cannot move the token.** After a freeze executes, `Send 10` to
 that holder is refused with `ACCOUNT_FROZEN_FOR_TOKEN`. After an unfreeze —
@@ -141,7 +148,11 @@ from the mirror node, and refresh after each action without a page reload.
 a read fails, a holder's KYC and frozen state show `Unknown` and its balance
 `unavailable`; the supply shows `unavailable`. Never `Not granted`, never
 `Frozen`, never `0`: those are claims about the chain that a failed read has not
-made.
+made. The same holds for the two answers that are easy to guess at: a pending
+order whose schedule could not be read keeps its place in the list but says its
+signature count is unknown rather than one, and a connected wallet whose role
+could not be checked is told exactly that, rather than that it is not an
+officer.
 
 **Private keys never reach the browser.** No response the server sends contains
 the operator key or an officer's or holder's key.
@@ -165,8 +176,9 @@ it and cannot be pressed twice.
    Holder B's balance is still `0`.
 5. Choose `Freeze holder` for Holder A with the default reference and press
    `#propose-order`. Confirm a row appears in `#pending-approvals` with a
-   schedule id, that the mirror node shows that schedule as **not executed**,
-   and that Holder A is **not** frozen.
+   schedule id that exists on the mirror node and is **not executed**, and that
+   Holder A is **not** frozen. (The schedule carries the record account's memo
+   update, not the freeze — see the constraints.)
 6. Press `Approve as Officer 2` on that row. Confirm the row leaves
    `#pending-approvals`, the mirror node shows the schedule executed, Holder A
    reads `Frozen`, and `#history` has the action with the case reference.
@@ -196,12 +208,43 @@ wallet. It is still part of the feature and must be implemented as described.
   `pauseKey` and `adminKey`. A token's keys cannot be made threshold keys after
   the fact without the admin key, which is the point: the control is designed
   in, not bolted on.
-- The second signature is collected with a **scheduled transaction**: the
-  proposal is `ScheduleCreateTransaction` wrapping the admin transaction and
-  signed by Officer 1; the approval is `ScheduleSignTransaction` on that
-  schedule id. The network executes it the moment the threshold is met, and not
-  before. Do not collect signatures in the app and submit one combined
-  transaction: the pending state on chain is what the page is showing.
+- The second signature is collected with a **real scheduled transaction** — a
+  `ScheduleCreateTransaction` signed by Officer 1, approved with a
+  `ScheduleSignTransaction`, with a `0.0.<num>` id the mirror node shows as
+  unexecuted until the second signature lands. The pending state on chain is
+  what the page is showing, so do not fake it by collecting signatures in the
+  app and submitting one combined transaction.
+
+  **It cannot be the admin transaction that is scheduled.** Hedera's
+  `scheduling.whitelist` does not include `TokenFreezeAccount`,
+  `TokenUnfreezeAccount`, `TokenPause`, `TokenUnpause`, `TokenAccountWipe` or
+  `TokenGrantKycToAccount`: scheduling any of them fails immediately with
+  `SCHEDULED_TRANSACTION_NOT_IN_WHITELIST` and creates no schedule at all. Every
+  order this desk carries is one of those, so none of them can be scheduled
+  directly.
+
+  `CryptoUpdateTransaction` **is** whitelisted, and an account's own key gates
+  it exactly as a token's admin key gates a freeze. So setup creates one extra
+  account — the *record account* — whose key is the same 2-of-3 `KeyList` as the
+  token's, and an order is proposed by scheduling an update to that account's
+  memo. That schedule is the real, inspectable, two-signature artefact. The
+  moment it executes, the server builds the actual admin transaction fresh —
+  new transaction id, full validity window — signs it with Officer 1 plus the
+  officer who approved, and executes it. The record account's memo carries no
+  weight of its own; it exists so the pending state is genuine.
+- The record schedule is always signed by Officers 1 and 2, whoever approved,
+  because the desk holds both of those keys and a wallet cannot be asked for a
+  second signature mid-handshake. The approving officer's signature is on the
+  admin transaction instead, which is the id `#history` links. Say who approved
+  in the history line; do not imply the schedule shows it.
+- **The separation of duties here is organisational, not cryptographic.** The
+  network really does require two of the three keys — the token's keys are a
+  2-of-3 `KeyList`, and one signature genuinely will not do. But this desk holds
+  Officers 1 and 2, so it can produce two signatures whenever it likes. What the
+  template demonstrates is the control the network enforces; keeping the keys
+  with different people, or in different custody, is what makes it a control in
+  production. Say so on the page rather than implying the server is restrained
+  by it.
 - The wallet is Officer 3 only when it is connected **before** setup, because
   the key list is fixed at token creation. Its public key is read from the
   mirror node for the connected account. With no wallet connected, a third demo
