@@ -8,8 +8,6 @@ Paired with the Hedera docs page **Solutions → Finance Workflows → Issue a p
 npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/permissioned-security
 ```
 
-> Work in progress: this branch is the Next.js starter the permissioned security app is being built on.
-
 ```bash
 yarn install
 yarn next:dev   # http://localhost:3000
