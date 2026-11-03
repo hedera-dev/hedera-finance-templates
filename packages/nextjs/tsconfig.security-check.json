@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".security-check",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": [
+    "services/security/keys.ts",
+    "services/security/hrc755.ts",
+    "tests/securityKeys.test.ts",
+    "tests/walletApproval.test.ts"
+  ]
+}

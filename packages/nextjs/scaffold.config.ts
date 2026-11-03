@@ -4,6 +4,14 @@ export type ScaffoldConfig = {
   targetNetworks: readonly [chains.Chain, ...chains.Chain[]];
   pollingInterval: number;
   rpcOverrides?: Record<number, string>;
+  /**
+   * A second, genuinely different RPC per chain to fall back to. `rpcOverrides` and viem's own
+   * built-in default for Hedera's chains both resolve to the same Hashio URL, so a wallet action
+   * (connecting, signing) has no real fallback if that one host has an outage — which it does,
+   * intermittently. This is what actually gives `fallback([...])` in `wagmiConfig.tsx` a second
+   * provider to try.
+   */
+  rpcFallbackOverrides?: Record<number, string>;
   enableBurnerWallet: boolean;
   walletConnectProjectId: string;
 };
@@ -36,6 +44,13 @@ const scaffoldConfig = {
   rpcOverrides: {
     [chains.hedera.id]: process.env.NEXT_PUBLIC_HEDERA_MAINNET_RPC_URL || "https://mainnet.hashio.io/api",
     [chains.hederaTestnet.id]: process.env.NEXT_PUBLIC_HEDERA_TESTNET_RPC_URL || "https://testnet.hashio.io/api",
+  },
+
+  // thirdweb's public relay: a different operator from Hashio, so it stays up when Hashio doesn't.
+  rpcFallbackOverrides: {
+    [chains.hedera.id]: process.env.NEXT_PUBLIC_HEDERA_MAINNET_RPC_FALLBACK_URL || "https://hedera.rpc.thirdweb.com",
+    [chains.hederaTestnet.id]:
+      process.env.NEXT_PUBLIC_HEDERA_TESTNET_RPC_FALLBACK_URL || "https://hedera-testnet.rpc.thirdweb.com",
   },
 
   walletConnectProjectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || "3a8170812b534d0ff9d794f19a901d64",
