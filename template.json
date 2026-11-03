@@ -1,0 +1,36 @@
+{
+  "name": "proof-of-reserve",
+  "description": "A tokenised asset issued through the Asset Tokenization Studio that cannot be issued beyond its collateral: a gate contract holds the issuer role and reads an on-chain reserve, priced by a live Chainlink feed, before it mints.",
+  "create-scaffold-hbar": {
+    "capabilities": {
+      "frontend": [
+        "nextjs-app"
+      ],
+      "solidityFramework": [
+        "foundry"
+      ],
+      "packageManager": [
+        "yarn",
+        "npm"
+      ]
+    },
+    "defaults": {
+      "frontend": "nextjs-app",
+      "solidityFramework": "foundry",
+      "packageManager": "yarn"
+    },
+    "outro": {
+      "sections": [
+        {
+          "title": "Next steps",
+          "steps": [
+            {
+              "label": "Start the frontend",
+              "command": "{run:next:dev}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

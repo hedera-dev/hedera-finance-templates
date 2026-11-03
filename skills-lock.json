@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "hedera-token-service": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/native-services-js/skills/hedera-token-service/SKILL.md",
+      "computedHash": "6d1e573893c754fdeb4efb5f790631298049d0a8088dd2374e9d7d08b7e7d1ce"
+    },
+    "hss-system-contract": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/system-contracts/skills/hss-system-contract/SKILL.md",
+      "computedHash": "a553cbfe4221fe7b8afbc799c61069caa6a7b6ea1b01585599a479dd6b9589c2"
+    },
+    "hts-system-contract": {
+      "source": "hedera-dev/hedera-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/system-contracts/skills/hts-system-contract/SKILL.md",
+      "computedHash": "b955e168bdee09f911305a838a58642c2b7af3727e01920f0d9890abc9f2fc96"
+    }
+  }
+}

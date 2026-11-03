@@ -1,0 +1,11 @@
+# Root scripts delegate to the workspaces; contracts live in packages/foundry.
+install: yarn install
+# foundry:compile first: the desk deploys the gate and the reserve feed itself at
+# setup, so the Next build needs their artifacts to exist. next:build is the only
+# production build here — forge only compiles.
+build: yarn foundry:compile && yarn next:build
+# forge test against mocks of the price feed and the collateral token: no network.
+test: yarn foundry:test
+# next:dev runs `next dev` and keeps running; it inherits HEDERA_OPERATOR_ID/KEY
+# from the harness. Nothing needs deploying before serving — the desk does it.
+serve: yarn next:dev
