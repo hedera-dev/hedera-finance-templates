@@ -1,162 +1,103 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { HederaPortalFaucet } from "@scaffold-hbar-ui/components";
+import { useEffect, useRef } from "react";
+import { SimulationsCard, TicketCard, WalletCard } from "./_reserve/ControlCards";
+import { ActivityCard, AssetCard, HoldersCard, Placeholder, ReserveCard, RolesCard } from "./_reserve/DeskCards";
+import { SetupCard } from "./_reserve/SetupCard";
+import { useReserveState } from "./_reserve/api";
+import { Card } from "./_reserve/ui";
 import type { NextPage } from "next";
-import { useAccount } from "wagmi";
-import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { HederaAddress } from "~~/components/scaffold-hbar";
-import { useTargetNetwork } from "~~/hooks/scaffold-hbar";
 
 const Home: NextPage = () => {
-  const { address: connectedAddress, status } = useAccount();
-  const { targetNetwork } = useTargetNetwork();
+  const { data: snapshot, error } = useReserveState();
+  const desk = snapshot?.desk ?? null;
+  const running = snapshot?.setup.running ?? false;
 
-  const isReconnecting = status === "reconnecting" || status === "connecting";
-  const isConnected = status === "connected" && connectedAddress;
+  // Scroll the reserve into view when a setup finishes while the page is open.
+  const seenCompletion = useRef<number | null | undefined>(undefined);
+  const completedAt = snapshot?.setup.completedAt ?? null;
+  useEffect(() => {
+    if (snapshot === undefined) return;
+    if (seenCompletion.current !== undefined && completedAt !== null && completedAt !== seenCompletion.current) {
+      document.getElementById("reserve")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    seenCompletion.current = completedAt;
+  }, [snapshot, completedAt]);
 
   return (
-    <>
-      <div className="flex items-center flex-col grow">
-        <div className="hedera-gradient dark:bg-none dark:bg-hedera-charcoal w-full py-16 px-5">
-          <div className="flex flex-col items-center max-w-2xl mx-auto">
-            <Image
-              src="/Hedera-Icon-White.svg"
-              alt="Hedera icon"
-              width={80}
-              height={80}
-              className="mb-6 hidden dark:block"
-            />
-            <Image src="/Hedera-Icon-Dark.svg" alt="Hedera icon" width={80} height={80} className="mb-6 dark:hidden" />
-            <div className="flex flex-col items-center gap-1 mb-4">
-              <span className="block text-lg font-medium tracking-widest uppercase text-white/80 dark:text-white/60">
-                Built on Hedera
-              </span>
-              <span className="block text-lg font-medium tracking-widest uppercase text-white/80 dark:text-white/60">
-                For
-              </span>
-              <Image
-                src="/Hedera-Wordmark-Lockup-White.svg"
-                alt="Hedera"
-                width={240}
-                height={48}
-                className="mt-1 hidden dark:block"
-              />
-              <Image
-                src="/Hedera-Wordmark-Lockup-Dark.svg"
-                alt="Hedera"
-                width={240}
-                height={48}
-                className="mt-1 dark:hidden"
-              />
-            </div>
-          </div>
+    <div className="w-full max-w-7xl mx-auto px-4 py-5 flex flex-col gap-5">
+      <header className="flex flex-col gap-2">
+        <h1 className="m-0 text-3xl font-bold">Proof of reserve</h1>
+        <p className="m-0 text-sm max-w-4xl">
+          Proof of reserve ties what an issuer can issue to what it holds. Here the asset is a tokenised security issued
+          through Hedera&apos;s Asset Tokenization Studio, and it cannot be issued beyond its collateral: a gate
+          contract holds the asset&apos;s issuer role, so every issuance has to pass through it, and the gate reads the
+          reserve before it mints and refuses if the reserve does not cover the supply. The collateral balance is read
+          from the chain, and so is the price that values it, from Chainlink&apos;s live BTC/USD feed, so coverage moves
+          as the market does.
+        </p>
+        {error && !snapshot ? (
+          <p role="alert" className="m-0 text-sm text-error">
+            The desk could not be reached: {error.message}
+          </p>
+        ) : null}
+        {snapshot?.readError ? (
+          <p role="alert" className="m-0 text-sm text-error">
+            The chain could not be read: {snapshot.readError}
+          </p>
+        ) : null}
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <div className="flex flex-col gap-5 min-w-0">
+          <SetupCard snapshot={snapshot} />
+          <TicketCard snapshot={snapshot} />
+          <SimulationsCard desk={desk} disabled={running} />
+          <WalletCard desk={desk} disabled={running} />
+          <Card
+            title="What this desk does and does not guarantee"
+            caption="Given an honestly held admin role, no issuance exceeds the reserve; the gate cannot bind the role above it."
+          >
+            <ul className="m-0 pl-5 text-sm flex flex-col gap-2">
+              <li>
+                The gate decides twice, on two different questions: whether the caller is on its own list of accounts
+                allowed to ask, and whether the reserve covers the supply after the issuance. The reserve check caps how
+                much, never who.
+              </li>
+              <li>
+                The admin role can grant itself the issuer role and bypass the gate. Unbacked issuance therefore needs
+                an explicit <code>RoleGranted</code> event rather than happening silently. This desk holds the admin
+                role on one key, deliberately: Hedera cannot schedule a contract call, so the admin role cannot be made
+                multi-party by scheduling the gate.
+              </li>
+              <li>
+                There is no login. The operator key sits in this machine&apos;s <code>.env.local</code>, and routes that
+                sign accept only same-origin requests. Anyone able to run code on this machine can spend the operator
+                account.
+              </li>
+              <li>
+                The collateral token stands for custodied BTC, one unit to one BTC. That mapping is this template&apos;s
+                one unverifiable assumption.
+              </li>
+            </ul>
+          </Card>
         </div>
 
-        <div className="w-full max-w-4xl mx-auto px-5 -mt-8">
-          <div className="bg-base-100 rounded-2xl shadow-lg p-8">
-            {isReconnecting ? (
-              <div className="flex flex-col items-center gap-2">
-                <p className="font-semibold text-sm text-base-content/60 uppercase tracking-wider m-0">Connecting…</p>
-                <div className="h-8 w-48 rounded bg-base-200 animate-pulse" aria-hidden />
-              </div>
-            ) : isConnected ? (
-              <div className="flex flex-col items-center gap-2">
-                <p className="font-semibold text-sm text-base-content/60 uppercase tracking-wider m-0">
-                  Connected Address
-                </p>
-                <HederaAddress address={connectedAddress} chain={targetNetwork} />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <p className="font-semibold text-sm text-base-content/60 uppercase tracking-wider m-0">
-                  Connect your wallet to get started
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="w-full max-w-4xl mx-auto px-5 mt-8 pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-base-100 rounded-2xl shadow-md p-8 text-center flex flex-col items-center hover:shadow-lg transition-shadow border border-base-300">
-              <div className="w-14 h-14 rounded-full hedera-gradient flex items-center justify-center mb-4">
-                <BugAntIcon className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="font-bold text-lg mb-2">Debug Contracts</h3>
-              <p className="text-base-content/70 text-sm m-0 mb-6">
-                Tinker with your smart contracts and test interactions in real time.
-              </p>
-              <Link href="/debug" passHref className="btn btn-primary btn-sm">
-                Open Debug
-              </Link>
-            </div>
-
-            <div className="bg-base-100 rounded-2xl shadow-md p-8 text-center flex flex-col items-center border border-base-300 relative">
-              <div className="w-14 h-14 rounded-full hedera-gradient flex items-center justify-center mb-4">
-                <MagnifyingGlassIcon className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="font-bold text-lg mb-2">Block Explorer</h3>
-              <p className="text-base-content/70 text-sm m-0 mb-6">
-                Explore transactions, addresses, and contract activity on Hedera.
-              </p>
-              <Link href="/blockexplorer" passHref className="btn btn-primary btn-sm">
-                Open Block Explorer
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-8 bg-base-100 rounded-2xl shadow-md p-8 border border-base-300">
-            <h3 className="font-bold text-lg mb-4 text-center">Quick Start</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">1</span>
-                <div>
-                  <p className="m-0 font-medium">Edit the frontend</p>
-                  <code className="text-xs bg-base-200 px-2 py-1 rounded">packages/nextjs/app/page.tsx</code>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">2</span>
-                <div>
-                  <p className="m-0 font-medium">Edit your contract</p>
-                  <div className="flex flex-col gap-1">
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      packages/hardhat/contracts/HederaToken.sol
-                    </code>
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      packages/foundry/contracts/HederaToken.sol
-                    </code>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">3</span>
-                <div>
-                  <p className="m-0 font-medium">Get testnet HBAR</p>
-                  <HederaPortalFaucet variant="link" label="portal.hedera.com/faucet" showIcon={false} />
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">4</span>
-                <div>
-                  <p className="m-0 font-medium">Deploy to Hedera</p>
-                  <div className="flex flex-col gap-1">
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      yarn hardhat:deploy --network hederaTestnet
-                    </code>
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      yarn foundry:deploy --network hedera_testnet
-                    </code>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="flex flex-col gap-5 min-w-0">
+          {desk ? (
+            <>
+              <ReserveCard desk={desk} />
+              <AssetCard desk={desk} />
+              <RolesCard roles={desk.roles} />
+              <HoldersCard holders={desk.holders} />
+              <ActivityCard activity={snapshot?.activity ?? []} />
+            </>
+          ) : (
+            <Placeholder />
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
