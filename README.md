@@ -5,10 +5,8 @@ Settle a trade delivery-versus-payment on Hedera: the security leg and the stabl
 Paired with the Hedera docs page **Solutions → Finance Workflows → Settle a trade delivery-versus-payment in one atomic transfer**.
 
 ```bash
-npx create-scaffold-hbar@latest --template web3buidlerz/hedera-finance-templates#templates/dvp-settlement
+npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/dvp-settlement
 ```
-
-> Work in progress: this branch is the Next.js starter the DvP app is being built on.
 
 ```bash
 yarn install
