@@ -5,10 +5,8 @@ Issue a tokenised bond through Hedera's Asset Tokenization Studio (ATS) testnet 
 Paired with the Hedera docs page **Solutions → Finance Workflows → Issue a tokenised bond with Asset Tokenization Studio**.
 
 ```bash
-npx create-scaffold-hbar@latest --template web3buidlerz/hedera-finance-templates#templates/ats-bond
+npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/ats-bond
 ```
-
-> Work in progress: this branch is the Next.js starter the bond app is being built on.
 
 ```bash
 yarn install
