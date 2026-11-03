@@ -219,14 +219,66 @@ it and cannot be pressed twice.
 
 ## How this will be checked
 
+Two readers check this spec, and they can check different things.
+
+The derived checklist is written from this file before anything is built, by a
+reader with no access to the code, and each of its checks reads one value once
+on a page it did not set up. So a check can only come from a claim that is true
+whenever the app is up: not one that holds only after a button is pressed, not
+one naming an address this run creates, and not one about whether a control is
+disabled. The bullets under **Always true** are phrased to be liftable that
+way, one claim each.
+
+Everything else is judgement, and the walkthrough is what the judge runs. Those
+steps are not the weaker half — they are the ones that actually exercise the
+gate — but none of them is a single read, so writing them as if they were only
+loses them.
+
+### Always true
+
+On a freshly loaded `/`, with no desk set up and no wallet connected. The
+controls render from the start and are merely disabled until there is a desk,
+so their labels are present on the first paint.
+
+- `/` returns HTTP 200.
+- `#setup-desk` reads `Set up desk`.
+- `#mint-amount` holds `1`.
+- `#mint-submit` reads `Issue through the gate`.
+- `#direct-issue` reads `Try issuing without the gate`.
+- `#bypass-gate` reads `Grant the admin the issuer role and issue unbacked`.
+- `#withdraw-collateral` reads `Move collateral out of the reserve`.
+- `#wallet-state` reads `Connect MetaMask to hold the asset.`
+- The ATS factory `0.0.9213391` is a contract on testnet whose EVM address is
+  forty hex digits.
+- The ATS business logic resolver `0.0.9212226` is a contract on testnet whose
+  EVM address is forty hex digits.
+- The Chainlink BTC/USD feed `0x058fE79CB5775d4b167920Ca6036B824805A9ABd` is a
+  contract on testnet.
+
+The last three are the template's premise rather than its behaviour: if ATS or
+the feed moves, nothing here can work, and that is worth finding out in fifteen
+seconds instead of twenty minutes.
+
+Nothing from the right-hand column belongs in that list. `#reserve-status`,
+`#coverage-ratio`, `#reserve-quantity`, `#reserve-price`, `#reserve-value`,
+`#asset-supply`, `#asset-liability`, `#headroom`, `#price-feed-address`,
+`#asset-address`, `#roles`, `#holders` and `#activity` do not exist until a desk
+is set up — the column renders a placeholder in their place — so a check
+reading any of them on a fresh page fails an app that is behaving exactly as
+asked.
+
+### The walkthrough
+
 1. Open `/` at 1024px or wider. Confirm the title spans the top, the two
-   columns below it, and `#setup-desk` visible without scrolling.
-2. Confirm `#price-feed-address` shows the Chainlink BTC/USD feed
-   `0x058fE79CB5775d4b167920Ca6036B824805A9ABd`, and that reading
-   `latestRoundData` from it returns a positive answer.
-3. Press `#setup-desk`. Watch all six steps reach `done`. Confirm on the mirror
+   columns sit below it, and `#setup-desk` is visible without scrolling.
+   Confirm the right-hand column shows its placeholder and states that nothing
+   appears until the desk is set up.
+2. Press `#setup-desk`. Watch all six steps reach `done`. Confirm on the mirror
    node that `#asset-contract-id` exists as a contract, and that `#asset-terms`
    matches what the contract reports.
+3. Confirm `#price-feed-address` shows the Chainlink BTC/USD feed
+   `0x058fE79CB5775d4b167920Ca6036B824805A9ABd`, and that reading
+   `latestRoundData` from it returns a positive answer.
 4. In `#roles`, confirm the issuer role is held by the address in
    `#gate-address`, the agent role is held by `nobody`, and the admin role is
    held by the operator. Confirm the same from the asset contract.
@@ -256,8 +308,7 @@ it and cannot be pressed twice.
     now shows the operator holding it alongside the gate.
 11. Inspect the responses the page received during all of the above for any
     private key.
-12. Without a wallet connected, confirm `#wallet-state` says to connect and
-    `#add-wallet-holder` is not offered.
+12. With no wallet connected, confirm `#add-wallet-holder` is not offered.
 
 Connecting MetaMask and signing with it is **not** checked: the checker has no
 MetaMask wallet. It is still part of the feature and must be implemented as
