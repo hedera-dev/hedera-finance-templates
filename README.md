@@ -20,7 +20,7 @@ npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#t
 | `templates/permissioned-security` | Issue a permissioned security token whose compliance rules are keys the network enforces — KYC, freeze, wipe, pause — and run a court-order freeze that takes two officers, since every admin key is 2-of-3. No smart contracts. | HTS |
 | `templates/hcs-audit-trail` | Publish a tamper-evident audit trail of security-token actions to an HCS topic only authorised publishers can write to, and give a regulator a live feed that verifies itself from the public mirror node. No smart contracts. | HCS |
 
-Every branch is a scaffold-hbar app (Next.js + TypeScript) with its own README. `templates/dvp-settlement`, `templates/ats-bond`, `templates/bond-coupons` and `templates/hcs-audit-trail` carry the finished app, each verified against testnet; `templates/permissioned-security` is still being prepared. Each app needs a funded testnet account in `packages/nextjs/.env.local` as `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY`; its docs page covers the rest.
+Every branch is a scaffold-hbar app (Next.js + TypeScript) with its own README. All five carry the finished app, each verified against Hedera testnet. Each app needs a funded testnet account in `packages/nextjs/.env.local` as `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY`; its docs page covers the rest.
 
 ## This branch
 
