@@ -19,8 +19,9 @@ npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#t
 | `templates/bond-coupons` | A bond contract that pays its own coupons: each payment schedules the next one (HIP-1215), coupons settle in an HTS stablecoin, and the last payment repays principal. No keepers or off-chain automation. | Schedule Service (HIP-1215), HTS |
 | `templates/permissioned-security` | Issue a permissioned security token whose compliance rules are keys the network enforces — KYC, freeze, wipe, pause — and run a court-order freeze that takes two officers, since every admin key is 2-of-3. No smart contracts. | HTS |
 | `templates/hcs-audit-trail` | Publish a tamper-evident audit trail of security-token actions to an HCS topic only authorised publishers can write to, and give a regulator a live feed that verifies itself from the public mirror node. No smart contracts. | HCS |
+| `templates/proof-of-reserve` | Issue a tokenised asset through the Asset Tokenization Studio that cannot be issued beyond its collateral: every issuance passes through a gate contract that reads the reserve first. The reserve is a second ATS token's on-chain balance, valued with the live Chainlink BTC/USD testnet feed, so coverage moves with the market. | ATS, Chainlink price feed |
 
-Every branch is a scaffold-hbar app (Next.js + TypeScript) with its own README. All five carry the finished app, each verified against Hedera testnet. Each app needs a funded testnet account in `packages/nextjs/.env.local` as `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY`; its docs page covers the rest.
+Every branch is a scaffold-hbar app (Next.js + TypeScript) with its own README. The first five carry the finished app, each verified against Hedera testnet. `templates/proof-of-reserve` carries a first generated pass that has not been verified against testnet yet. Each app needs a funded testnet account in `packages/nextjs/.env.local` as `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY`; its docs page covers the rest.
 
 ## This branch
 
