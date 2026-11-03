@@ -1,0 +1,7 @@
+{
+  "name": "ats-bond-spike",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node bond.mjs" },
+  "dependencies": { "ethers": "^6.13.5" }
+}

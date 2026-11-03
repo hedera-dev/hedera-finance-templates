@@ -24,4 +24,16 @@ Every branch is a scaffold-hbar app (Next.js + TypeScript) with its own README. 
 
 ## This branch
 
-`main` holds this index only. Template code never lands on `main`.
+`main` holds this index and `spikes/`. Template code never lands on `main`.
+
+A spike is a standalone script that proves a workflow against testnet before a template is built from it, so the template's spec is written against what the network actually does rather than what the docs imply. Both of these have been run and verified on testnet:
+
+- `spikes/dvp` — settles a two-leg `TransferTransaction` through a scheduled transaction: the security leg and the cash leg move together, and with a buyer that has no KYC on the security neither leg moves.
+- `spikes/ats-bond` — issues a bond through the Asset Tokenization Studio v8 testnet factory with a plain operator key over JSON-RPC, since the ATS SDK has no private-key signer. It resolves the bond configuration's latest version first (version `0` reverts with `VersionZero`), grants the issuer `ROLE_ISSUER` and `ROLE_CONTROL_LIST` at deployment, turns the control list into an allowlist, issues to a listed investor, and shows an unlisted one refused with `AccountIsBlocked`.
+
+Each one runs on its own against testnet, reading its credentials from the environment:
+
+```bash
+cd spikes/dvp && npm install
+HEDERA_OPERATOR_ID=0.0.x HEDERA_OPERATOR_KEY=<ecdsa hex> npm start
+```

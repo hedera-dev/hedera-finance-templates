@@ -1,0 +1,7 @@
+{
+  "name": "dvp-spike",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node dvp.mjs" },
+  "dependencies": { "@hiero-ledger/sdk": "2.89.1" }
+}
