@@ -1,0 +1,36 @@
+{
+  "name": "collateral-mobility",
+  "description": "A tokenised T-bill pledged as collateral without ever leaving its owner's wallet: an Asset Tokenization Studio hold encumbers the bill, a Stablecoin Studio stablecoin is borrowed against it after a haircut, and the lender takes the collateral when the loan is not repaid or coverage breaks.",
+  "create-scaffold-hbar": {
+    "capabilities": {
+      "frontend": [
+        "nextjs-app"
+      ],
+      "solidityFramework": [
+        "foundry"
+      ],
+      "packageManager": [
+        "yarn",
+        "npm"
+      ]
+    },
+    "defaults": {
+      "frontend": "nextjs-app",
+      "solidityFramework": "foundry",
+      "packageManager": "yarn"
+    },
+    "outro": {
+      "sections": [
+        {
+          "title": "Next steps",
+          "steps": [
+            {
+              "label": "Start the frontend",
+              "command": "{run:next:dev}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
