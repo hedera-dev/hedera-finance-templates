@@ -225,6 +225,13 @@ happen to a real desk:
 - `#reclaim-result` — what the network answered, and a sentence saying the
   borrower's own way out opens only once the hold expires, which is why the
   expiry must outlast the loan
+- `#pledge-wrong-escrow`, labelled `Pledge with the wrong escrow`, which has the
+  borrower create a hold naming the **lender** as escrow instead of the repo
+  contract — a pledge that looks right on the page and is worthless
+- `#redirect-pledge`, labelled `Try to send the pledge elsewhere`, which has the
+  repo contract attempt to execute the hold to an address other than the
+  destination recorded on it
+- `#redirect-result` — what the network answered
 
 **The activity log.** `#activity` lists every action the desk performed, newest
 first, as rows with the class `activity-entry`: the time, what was done, the
@@ -244,6 +251,12 @@ switch MetaMask to Hedera testnet, add the wallet, or pledge.
 the LTV and the balances on its own every second, so the position moves as the
 clock runs, without a reload.
 
+**While a read is in flight, the last good value stays on screen.** A refresh
+that has not landed yet never blanks an element that already had a number.
+Before the first read of a desk lands, every value in the position, bill and
+cash cards reads `—`: one em dash, never an empty element, and never a `0` that
+would be mistaken for a position.
+
 ## Behaviour
 
 **The pledge encumbers in place.** `#pledge-collateral` has the borrower create
@@ -254,9 +267,12 @@ the two still sum to what the borrower owns. No transfer of the bill appears on
 the mirror node, because none happened.
 
 **The destination is fixed at pledge time.** The hold's `to` is set by the
-borrower when they pledge and cannot be changed by the escrow, the lender, the
-token admin or the issuer. The page reads it back from the chain into
-`#hold-destination`.
+borrower when they pledge and cannot be changed afterwards. The page reads it
+back from the chain into `#hold-destination`, and `#redirect-pledge` proves it:
+the escrow itself — the only account ATS lets near the hold — asks to execute
+it to a different address and ATS refuses, with `#redirect-result` naming the
+error and `#collateral-pledged` unchanged. The borrower therefore commits to
+one destination at pledge time and the lender cannot widen it later.
 
 **Cash moves only against a verified hold.** `#open-loan` is one transaction. In
 it the repo contract reads the hold with `getHoldForByPartition` and refuses
@@ -264,7 +280,16 @@ unless the escrow is itself, the destination is the lender, the amount is at
 least the collateral the loan claims, and the expiry outlasts the term plus its
 grace period. Only then does it pull the lender's stablecoin and push it to the
 borrower. There is no window in which the loan exists unsecured, and no step at
-which the app's claim about the pledge is taken on trust — the contract looks.
+which the app's claim about the pledge is taken on trust.
+
+**And that verification is demonstrable, not asserted.**
+`#pledge-wrong-escrow` stages a hold that names the lender as escrow rather
+than the repo contract. The page shows the pledge, `#collateral-pledged` rises,
+and `#collateral-free` falls — from the outside it is indistinguishable from a
+good pledge. `#open-loan` is then refused and `#open-error` names the escrow
+mismatch, with no cash moved. That refusal is the only evidence from outside
+the code that the contract reads the hold rather than trusting the page, which
+is why the control ships rather than living in a test.
 
 **The haircut caps the loan.** A loan is refused when the principal exceeds
 `collateral value × (1 − haircut)`. `#borrow-preview` says so before the button
@@ -387,6 +412,8 @@ their labels are present on the first paint.
 - `#freeze-feed` reads `Stop the price feed`.
 - `#transfer-pledged` reads `Try to transfer the pledged bills`.
 - `#reclaim-pledge` reads `Try to reclaim the pledge`.
+- `#pledge-wrong-escrow` reads `Pledge with the wrong escrow`.
+- `#redirect-pledge` reads `Try to send the pledge elsewhere`.
 - `#demo-clock` reads `1 second = 1 day`.
 - `#wallet-state` reads `Connect MetaMask to borrow.`
 - The ATS factory `0.0.9213391` is a contract on testnet whose EVM address is
@@ -408,7 +435,8 @@ Nothing from the right-hand column belongs in that list. `#bill-price`,
 `#interest-accrued`, `#debt`, `#ltv`, `#liquidation-price`, `#headroom`,
 `#accretion`, `#term-remaining`, `#loan-status`, `#lender-cash`,
 `#borrower-cash`, `#escrow-address`, `#hold-destination`, `#hold-expiry`,
-`#repo-in-control-list`, `#repo-roles` and `#activity` do not exist until a desk
+`#repo-in-control-list`, `#repo-roles`, `#redirect-result` and `#activity` do
+not exist until a desk
 is set up — the column renders a placeholder in their place — so a check reading
 any of them on a fresh page fails an app that is behaving exactly as asked.
 
@@ -449,36 +477,46 @@ setup.
    and `#collateral-pledged` is unchanged.
 10. Press `#reclaim-pledge`. Confirm `#reclaim-result` names the ATS refusal and
     `#collateral-pledged` is unchanged.
-11. Wait several seconds without touching the page. Confirm
+11. Press `#redirect-pledge`. Confirm `#redirect-result` names the ATS refusal,
+    `#collateral-pledged` is unchanged, and the mirror node shows no transfer of
+    the bill in that transaction.
+12. Wait several seconds without touching the page. Confirm
     `#bill-days-remaining` fell, `#bill-price`, `#collateral-value` and
     `#borrowing-capacity` rose, `#interest-accrued` rose, and `#accretion` and
     `#interest-accrued` are both non-zero with the page naming which is larger.
-12. Press `#freeze-feed`. Confirm `#loan-status` becomes `UNKNOWN`, that
+13. Press `#freeze-feed`. Confirm `#loan-status` becomes `UNKNOWN`, that
     `#open-loan` and `#top-up` are refused with the staleness error, and that
     `#liquidate` is also refused while the term has not passed. Press
     `#resume-feed` and confirm the status recovers.
-13. Enter `1200` in `#shock-rate` and press `#apply-shock`. Confirm `#bill-price`
+14. Enter `1200` in `#shock-rate` and press `#apply-shock`. Confirm `#bill-price`
     fell below `#liquidation-price`, `#ltv` rose above
     `#liquidation-threshold`, and `#loan-status` is `LIQUIDATABLE`.
-14. Press `#top-up` with enough to bring the LTV back under the threshold.
+15. Press `#top-up` with enough to bring the LTV back under the threshold.
     Confirm `#principal` and `#debt` fell, `#ltv` fell, `#loan-status` returned
     to `OPEN`, and `#liquidate` is now refused.
-15. Press `#apply-shock` again to breach the threshold, then press `#liquidate`.
+16. Press `#apply-shock` again to breach the threshold, then press `#liquidate`.
     Confirm the bills moved from the borrower to the lender on the mirror node,
     that the destination is the one `#hold-destination` showed in step 6,
     `#loan-status` is `LIQUIDATED`, and `#liquidate-result` names the price as
     the trigger.
-16. Set up a fresh desk, pledge, borrow, and let `#term-remaining` reach zero
+17. Set up a fresh desk. Press `#pledge-wrong-escrow`, and confirm
+    `#collateral-pledged` rose and `#collateral-free` fell exactly as a good
+    pledge would — the page cannot tell the difference. Confirm with
+    `getHoldForByPartition` on the bill that the escrow is **not**
+    `#escrow-address`. Then press `#open-loan` and confirm it is refused,
+    `#open-error` names the escrow mismatch, `#borrower-cash` is unchanged and
+    `#lender-cash` is unchanged.
+18. Set up a fresh desk, pledge, borrow, and let `#term-remaining` reach zero
     without repaying. Press `#freeze-feed`, then `#liquidate`. Confirm it
     **succeeds** despite the stale feed and that `#liquidate-result` names the
     term as the trigger.
-17. Set up a fresh desk, pledge, borrow, and press `#repay-loan`. Confirm in one
+19. Set up a fresh desk, pledge, borrow, and press `#repay-loan`. Confirm in one
     transaction that `#lender-cash` rose by principal plus interest,
     `#collateral-pledged` returned to `0`, `#collateral-free` returned to its
     starting value, and `#loan-status` is `REPAID`.
-18. Inspect the responses the page received during all of the above for any
+20. Inspect the responses the page received during all of the above for any
     private key.
-19. With no wallet connected, confirm `#add-wallet-borrower` is not offered.
+21. With no wallet connected, confirm `#add-wallet-borrower` is not offered.
 
 Connecting MetaMask and signing with it is **not** checked: the checker has no
 MetaMask wallet. It is still part of the feature and must be implemented as
@@ -715,7 +753,8 @@ will trip on it once, so the page spends a paragraph on it:
   mock bill, a mock stablecoin and `MockAggregator`: the capacity boundary, the
   LTV boundary, both liquidation paths, term liquidation succeeding on a stale
   price while price liquidation is refused on one, a zero price, a hold whose
-  escrow or destination is wrong, a hold expiring mid-term, repayment releasing
+  escrow is not the repo contract, a hold whose destination is not the lender,
+  a hold expiring mid-term, repayment releasing
   the hold, and that every refusal moves no cash and leaves the hold untouched.
   `yarn foundry:test` runs them, with no network.
 - Do not try to make the lender multi-party by scheduling the repo call.
