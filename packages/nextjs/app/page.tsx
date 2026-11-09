@@ -66,8 +66,8 @@ const Home: NextPage = () => {
           the days remaining.
         </p>
         <p className="m-0 text-sm max-w-4xl">
-          The one compression, applied in one place: <strong id="demo-clock">1 second = 1 day</strong> of the
-          bill&apos;s life. The 30-day term runs in 30 seconds and the 91-day bill matures in 91 seconds.
+          The one compression, applied in one place: <strong id="demo-clock">10 seconds = 1 day</strong> of the
+          bill&apos;s life. The 30-day term runs in five minutes and the 91-day bill matures in about fifteen.
         </p>
         {offline && !snapshot ? (
           <div className="alert alert-warning text-sm">The desk could not be reached yet: {offline}</div>

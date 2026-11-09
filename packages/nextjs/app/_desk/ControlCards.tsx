@@ -341,8 +341,9 @@ export function SimulationsCard({ desk, busy, run }: Shared) {
       </div>
       <p className="m-0 text-xs text-base-content/70">
         The 700bp move needed to liquidate this bill on price is far beyond anything observed in three-month bills and
-        is shown only so the mechanism is visible. On the demo clock a 91-day bill matures in 91 seconds, and a matured
-        bill prices at par whatever the rate is, so restart its clock before a price shock if the bill has run down.
+        is shown only so the mechanism is visible. On the demo clock a 91-day bill matures in about fifteen minutes, and
+        a matured bill prices at par whatever the rate is, so restart its clock before a price shock if the bill has run
+        down.
       </p>
       <Outcome id="shock-result" result={results.shock ?? null} />
       <Outcome id="feed-result" result={results.feed ?? null} />

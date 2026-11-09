@@ -105,16 +105,16 @@ export function BillCard({ desk }: { desk: DeskView }) {
       />
       <div className="rounded-box bg-base-200 p-3 text-sm flex flex-col gap-1">
         <div>
-          Demo clock: <strong>1 second = 1 day</strong> (stated at the top of the page)
+          Demo clock: <strong>10 seconds = 1 day</strong> (stated at the top of the page)
         </div>
         <div>
           The bill&apos;s own maturity date, set 91 real days out:{" "}
           <strong id="real-maturity">{localTime(terms?.maturityMs)}</strong>
         </div>
         <p className="m-0 text-xs text-base-content/70">
-          The two differ by 86,400× on purpose. Without the compression, the interest on a ten-minute loan at 4.8% is
-          nine thousandths of a cent and the page would read $0.00. The price feed and the loan share one knob,
-          <code> secondsPerDay</code>: 1 here, 86,400 in production. Nothing else in the app has a clock of its own.
+          The two differ by 8,640× on purpose. Without the compression, the interest on a five-minute loan at 4.8% is
+          less than half a cent and the page would read $0.00. The price feed and the loan share one knob,
+          <code> secondsPerDay</code>: 10 here, 86,400 in production. Nothing else in the app has a clock of its own.
         </p>
       </div>
     </Card>

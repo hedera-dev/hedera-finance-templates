@@ -10,7 +10,7 @@ import { AggregatorV3Interface } from "./interfaces/AggregatorV3Interface.sol";
 ///      `AggregatorV3Interface`. There is deliberately no setter for the price: a price a desk can type in
 ///      proves nothing, and the pull to par has to be arithmetic.
 ///
-///      The demo clock lives here and nowhere else: `secondsPerDay` is 1 in the demo and 86400 in production.
+///      The demo clock lives here and nowhere else: `secondsPerDay` is 10 in the demo and 86400 in production.
 contract BillPriceFeed is AggregatorV3Interface, Ownable {
     uint8 public constant decimals = 8;
     /// @dev Bank-discount convention: a 360-day year, with the rate in basis points.
@@ -69,7 +69,7 @@ contract BillPriceFeed is AggregatorV3Interface, Ownable {
         emit UpdatedAtPinned(updatedAt);
     }
 
-    /// @notice Re-anchors the bill's life. A demo bill matures in 91 seconds; this lets the desk start the
+    /// @notice Re-anchors the bill's life. A demo bill matures in about fifteen minutes; this lets the desk start the
     ///         clock when it is ready rather than when the feed happened to be deployed.
     function setMaturityTimestamp(uint256 maturityTimestamp_) external onlyOwner {
         maturityTimestamp = maturityTimestamp_;

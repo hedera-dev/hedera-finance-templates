@@ -66,19 +66,22 @@ export const BORROWER_CASH_USD = 200n; // the interest has to come from somewher
 export const RESERVE_INITIAL_USD = 1_000_000n;
 export const INT64_MAX = 9_223_372_036_854_775_807n;
 
-// The demo clock: one second of real time is one day of the bill's life. Applied here and read back by the page.
-export const SECONDS_PER_DAY = 1n;
+// The demo clock: ten seconds of real time is one day of the bill's life. Applied here and read back by the page.
+// The term then runs five minutes: long enough to work a position in, short enough to wait out for a term default.
+export const SECONDS_PER_DAY = 10n;
 export const DEMO_BILL_DAYS = 91;
 export const TERM_DAYS = 30;
 export const REPO_RATE_BPS = 480;
 export const HAIRCUT_BPS = 200;
 export const LIQUIDATION_THRESHOLD_BPS = 9_900;
+// The three below are REAL seconds and do not scale with SECONDS_PER_DAY. Moving the clock means moving them too,
+// or they dwarf the loan they govern: at one second to the day the grace period was 120x the whole term.
 /** The price feed may be at most this old, in real seconds, for the repo contract to use it. */
-export const STALENESS_SECONDS = 300;
-/** Real seconds a hold must outlast the term by. */
-export const GRACE_SECONDS = 3_600;
+export const STALENESS_SECONDS = 60;
+/** Real seconds a hold must outlast the term by: one term's worth, so a default can still be liquidated. */
+export const GRACE_SECONDS = 300;
 /** The hold is created to expire this long after term plus grace, so it clears the contract's check with margin. */
-export const HOLD_EXPIRY_MARGIN_SECONDS = 900;
+export const HOLD_EXPIRY_MARGIN_SECONDS = 300;
 
 // Upper bounds, so a mistyped amount cannot move the desk's whole position.
 export const MAX_PLEDGE_BILLS = 10n;

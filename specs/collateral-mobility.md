@@ -67,20 +67,27 @@ permits, the entire reason it is dangerous.
 
 ## The demo clock
 
-One compression, applied in one place, and named on the page: **one second of
-real time is one day of the bill's life.** The 30-day term runs in 30 seconds
-and the 91-day bill matures in 91 seconds.
+One compression, applied in one place, and named on the page: **ten seconds of
+real time is one day of the bill's life.** The 30-day term runs in five minutes
+and the 91-day bill matures in about fifteen.
+
+The term has to be long enough to work a position in and short enough to wait
+out, because term default is the primary liquidation path and the only way to
+show it is to let the term end. Five minutes is that compromise. The real-second
+constants around it — the staleness window, the grace period and the hold's
+expiry margin — are scaled to match, so that none of them dwarfs the loan it
+governs.
 
 The price feed is constructed with a `maturityTimestamp` and a `secondsPerDay`
-that is `1` here and `86400` in production; it computes
+that is `10` here and `86400` in production; it computes
 `daysRemaining = (maturityTimestamp − now) / secondsPerDay`, and the loan accrues
 interest over `elapsedDays = elapsed / secondsPerDay` on the same knob. Nothing
 else in the app has a clock of its own.
 
 The ATS bill's own `getMaturityDate()` is set 91 **real** days out, because that
 is what the instrument is. The page shows that date beside the demo clock and
-states plainly that the two differ by 86,400× and why. Without the compression
-the interest on a ten-minute loan at 4.8% is nine thousandths of a cent and the
+states plainly that the two differ by 8,640× and why. Without the compression
+the interest on a five-minute loan at 4.8% is less than half a cent and the
 page would read `$0.00`.
 
 ## What a user sees
@@ -137,7 +144,7 @@ setup finishes the page scrolls the position into view.
 - `#feed-address`, linked to HashScan, with a caption saying this app deployed it
   because Hedera carries no Treasury price feed, and that it implements
   Chainlink's `AggregatorV3Interface` so a real one is a drop-in replacement
-- `#demo-clock` — reads `1 second = 1 day`, beside the bill's real maturity date
+- `#demo-clock` — reads `10 seconds = 1 day`, beside the bill's real maturity date
 
 **The position.** Also after setup:
 
@@ -414,7 +421,7 @@ their labels are present on the first paint.
 - `#reclaim-pledge` reads `Try to reclaim the pledge`.
 - `#pledge-wrong-escrow` reads `Pledge with the wrong escrow`.
 - `#redirect-pledge` reads `Try to send the pledge elsewhere`.
-- `#demo-clock` reads `1 second = 1 day`.
+- `#demo-clock` reads `10 seconds = 1 day`.
 - `#wallet-state` reads `Connect MetaMask to borrow.`
 - The ATS factory `0.0.9213391` is a contract on testnet whose EVM address is
   forty hex digits.
