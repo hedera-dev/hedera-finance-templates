@@ -15,6 +15,7 @@ type Chained = {
   status?: number;
   code?: number;
   name?: string;
+  details?: unknown;
 };
 
 function* walk(error: unknown): Generator<Chained> {
@@ -55,7 +56,22 @@ export function decodeFailure(error: unknown): Decoded {
   const text = shortText(error);
   if (/revert/i.test(text))
     return { name: "Reverted", message: "The contract reverted without giving a reason.", reverted: true };
-  return { name: "Failed", message: text, reverted: false };
+  return { name: "Failed", message: relayText(error) ?? text, reverted: false };
+}
+
+/**
+ * The relay's own words. viem titles every non-2xx "HTTP request failed." and files the reason under
+ * `details`, so without this a relay hiccup and a real rejection read identically. `body` is never
+ * touched: on a send it is the signed transaction.
+ */
+function relayText(error: unknown): string | undefined {
+  for (const link of walk(error)) {
+    if (link.name !== "HttpRequestError") continue;
+    const detail = typeof link.details === "string" ? clean(link.details) : "";
+    const status = link.status ? `HTTP ${link.status}` : "an HTTP error";
+    return detail ? `The relay answered ${status}: ${detail}` : `The relay answered ${status}.`;
+  }
+  return undefined;
 }
 
 const ROLE_NAMES: Record<string, string> = {
