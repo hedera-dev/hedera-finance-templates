@@ -13,7 +13,7 @@ function Outcome({ id, result }: { id: string; result: ActionResult | null }) {
   if (!result) return null;
   return (
     <div id={id} className={`alert ${result.ok ? "alert-success" : "alert-error"} text-sm break-words`}>
-      <span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">
         <strong className="font-mono">{result.result}</strong>
         {result.message ? ` — ${result.message}` : ""}
       </span>
@@ -39,13 +39,7 @@ function Button({
   variant?: string;
 }) {
   return (
-    <button
-      id={id}
-      type="button"
-      className={`btn btn-sm ${variant}`}
-      disabled={disabled || busy !== null}
-      onClick={onClick}
-    >
+    <button id={id} type="button" className={`btn ${variant}`} disabled={disabled || busy !== null} onClick={onClick}>
       {busy === busyKey ? <Spinner /> : null}
       {label}
     </button>
@@ -256,23 +250,26 @@ export function LoanTicketCard({
       </div>
       <Outcome id="liquidate-result" result={liquidateResult} />
 
-      <div className="text-xs text-base-content/70 flex flex-col gap-2">
-        <p className="m-0">
-          <strong>Failure to repay at term is the primary liquidation path</strong>, as it is for real bill repo: once
-          the term reaches zero unpaid, anyone may take the collateral, and that path reads no price at all. Price
-          liquidation is the second path.
-        </p>
-        <p className="m-0">
-          A price-based liquidation is nearly unreachable on a 13-week bill. Its duration is 91/360 = 0.25 years, so
-          each 100bp of rate costs about $2.53, or 0.26%. Moving the price from $987.36 to the $969.70 trigger takes
-          roughly 700bp in three-month bills: not a market move but a change of monetary regime.
-        </p>
-        <p className="m-0">
-          A stale or impossible price blocks new credit and price liquidation, but not term liquidation. That asymmetry
-          is deliberate: blocking new credit on data you cannot trust is prudent; seizing someone&apos;s collateral on
-          it is not.
-        </p>
-      </div>
+      <details className="text-sm">
+        <summary className="cursor-pointer font-medium">Which liquidation path a loan actually takes</summary>
+        <div className="mt-2 text-xs text-base-content/70 flex flex-col gap-2">
+          <p className="m-0">
+            <strong>Failure to repay at term is the primary liquidation path</strong>, as it is for real bill repo: once
+            the term reaches zero unpaid, anyone may take the collateral, and that path reads no price at all. Price
+            liquidation is the second path.
+          </p>
+          <p className="m-0">
+            A price-based liquidation is nearly unreachable on a 13-week bill. Its duration is 91/360 = 0.25 years, so
+            each 100bp of rate costs about $2.53, or 0.26%. Moving the price from $987.36 to the $969.70 trigger takes
+            roughly 700bp in three-month bills: not a market move but a change of monetary regime.
+          </p>
+          <p className="m-0">
+            A stale or impossible price blocks new credit and price liquidation, but not term liquidation. That
+            asymmetry is deliberate: blocking new credit on data you cannot trust is prudent; seizing someone&apos;s
+            collateral on it is not.
+          </p>
+        </div>
+      </details>
     </Card>
   );
 }

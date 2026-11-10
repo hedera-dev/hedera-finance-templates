@@ -347,7 +347,7 @@ export async function runSetup(): Promise<void> {
           bytecode: artifact.bytecode,
           args: [
             BigInt(BILL_FACE_USD) * USD8,
-            BigInt(nowSeconds() + DEMO_BILL_DAYS),
+            BigInt(nowSeconds() + DEMO_BILL_DAYS * Number(SECONDS_PER_DAY)),
             SECONDS_PER_DAY,
             BigInt(DISCOUNT_RATE_BPS),
             operator.account.address,
@@ -505,7 +505,7 @@ export async function runSetup(): Promise<void> {
           to: feed.address,
           abi: feedAbi,
           functionName: "setMaturityTimestamp",
-          args: [BigInt(nowSeconds() + DEMO_BILL_DAYS)],
+          args: [BigInt(nowSeconds() + DEMO_BILL_DAYS * Number(SECONDS_PER_DAY))],
         });
         if (!anchored.ok) refuse("Starting the bill's clock", anchored);
       },

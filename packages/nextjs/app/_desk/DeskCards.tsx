@@ -105,7 +105,7 @@ export function BillCard({ desk }: { desk: DeskView }) {
       />
       <div className="rounded-box bg-base-200 p-3 text-sm flex flex-col gap-1">
         <div>
-          Demo clock: <strong>10 seconds = 1 day</strong> (stated at the top of the page)
+          Demo clock: <strong>10 seconds = 1 day</strong>
         </div>
         <div>
           The bill&apos;s own maturity date, set 91 real days out:{" "}
@@ -330,7 +330,10 @@ export function EncumbranceCard({ desk }: { desk: DeskView }) {
 
 export function ActivityCard({ entries }: { entries: ActivityEntry[] }) {
   return (
-    <Card title="Activity" caption="Every action the desk performed, newest first, with the transaction on HashScan.">
+    <Card
+      title="Activity"
+      caption="This session's actions, newest first, with the transaction on HashScan. The chain is the record; this list is not kept."
+    >
       <ol id="activity" className="m-0 p-0 list-none flex flex-col gap-2">
         {entries.length === 0 ? (
           <li className="text-sm text-base-content/60">Nothing yet.</li>

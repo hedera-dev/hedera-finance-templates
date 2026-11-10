@@ -115,6 +115,8 @@ function describe(name: string, args: readonly unknown[]): string {
       return "WrongState: that loan is no longer open.";
     case "IsNotEscrow":
       return "IsNotEscrow: only the hold's escrow may execute or release it.";
+    case "InvalidPartition":
+      return `InvalidPartition: ${String(first)} has no free bills to move. Every unit is under the hold, so ATS finds nothing in the partition to transfer.`;
     case "InvalidDestinationAddress":
       return `InvalidDestinationAddress: the hold's destination is ${String(first)}; it cannot be executed to ${String(second)}.`;
     case "AccountHasNoRoles":

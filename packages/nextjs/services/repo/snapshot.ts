@@ -10,6 +10,7 @@ import {
   ROLES,
   ROLE_LABELS,
   TERM_DAYS,
+  ZERO_ADDRESS,
 } from "./constants";
 import { type Desk, getDesk, state } from "./desk";
 import { BPS, CASH_SCALE, formatBps, formatFixed, formatUsd8, plainCash } from "./math";
@@ -240,7 +241,7 @@ async function buildDesk(desk: Desk): Promise<DeskView> {
     const cost = interestUnits * CASH_SCALE;
     accretion = formatUsd8(gained);
     const difference = gained - cost;
-    carry = `${difference < 0n ? "-" : ""}${formatUsd8(difference < 0n ? -difference : difference)}`;
+    carry = formatUsd8(difference);
     carryNote =
       difference > 0n
         ? "Accretion is larger than the interest: the bill earns more than the funding costs."
@@ -253,7 +254,8 @@ async function buildDesk(desk: Desk): Promise<DeskView> {
     hasLoan && position && position.state !== 0 ? position.termRemainingDays.toString() : hasLoan ? null : "0";
 
   // ---- the hold, as the bill reports it
-  const holdOk = hold !== null && hold[2] !== undefined;
+  // A released or executed hold reads back as all zeroes: no escrow, expiry 0. Show that as no hold, not as 1970.
+  const holdOk = hold !== null && hold[2] !== undefined && hold[2] !== ZERO_ADDRESS;
   const reserveScaleDecimals = reserveDecimals === null ? 2 : Number(reserveDecimals);
 
   return {

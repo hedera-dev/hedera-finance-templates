@@ -10,6 +10,7 @@ import {
   HOLD_EXPIRY_MARGIN_SECONDS,
   MAX_PLEDGE_BILLS,
   PARTITION,
+  SECONDS_PER_DAY,
   TERM_DAYS,
 } from "~~/services/repo/constants";
 import type { ActionRequest, ActionResult, DeskView } from "~~/types/repo";
@@ -51,7 +52,11 @@ export function useWalletPledge(desk: DeskView | null, act: (request: ActionRequ
         const hold = {
           amount: BigInt(amountText),
           expirationTimestamp: BigInt(
-            Math.floor(Date.now() / 1000) + TERM_DAYS + GRACE_SECONDS + HOLD_EXPIRY_MARGIN_SECONDS,
+            // The term is in demo days; everything added to it is real seconds. Same arithmetic as the server pledge.
+            Math.floor(Date.now() / 1000) +
+              TERM_DAYS * Number(SECONDS_PER_DAY) +
+              GRACE_SECONDS +
+              HOLD_EXPIRY_MARGIN_SECONDS,
           ),
           escrow: desk.encumbrance.escrow.address as `0x${string}`,
           to: desk.operator as `0x${string}`,

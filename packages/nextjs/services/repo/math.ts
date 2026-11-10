@@ -11,6 +11,7 @@ const group = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
 /** `$1,234.56` from a USD8 amount, rounded to the cent. */
 export function formatUsd8(value: bigint): string {
+  if (value < 0n) return `-${formatUsd8(-value)}`;
   const cents = (value + 500_000n) / 1_000_000n;
   return `$${group((cents / 100n).toString())}.${(cents % 100n).toString().padStart(2, "0")}`;
 }
