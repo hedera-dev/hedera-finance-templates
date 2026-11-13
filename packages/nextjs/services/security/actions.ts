@@ -169,8 +169,8 @@ export async function setupToken() {
   // with the treasury so the issuer can keep clicking "Send 10" through the rest of the demo
   // instead of running dry after the first transfer.
   const tokenCreate = new TokenCreateTransaction()
-    .setTokenName("Permissioned Security")
-    .setTokenSymbol("PSEC")
+    .setTokenName("Regulated Token")
+    .setTokenSymbol("RTKN")
     .setDecimals(0)
     .setInitialSupply(10_000)
     .setTreasuryAccountId(operator.accountId)
@@ -187,7 +187,7 @@ export async function setupToken() {
   const receipt = await (await tokenCreate.execute(client)).getReceipt(client);
 
   const tokenId = receipt.tokenId!.toString();
-  setToken({ tokenId, symbol: "PSEC" });
+  setToken({ tokenId, symbol: "RTKN" });
 
   // The record account: same 2-of-3 threshold key, holds no funds, exists only as something a
   // whitelisted `CryptoUpdateTransaction` can target — see the comment atop this file.
@@ -196,7 +196,7 @@ export async function setupToken() {
   ).getReceipt(client);
   setRecordAccount(recordReceipt.accountId!.toString());
 
-  return { tokenId, symbol: "PSEC" };
+  return { tokenId, symbol: "RTKN" };
 }
 
 export async function setupHolders() {
