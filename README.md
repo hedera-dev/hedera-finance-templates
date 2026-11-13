@@ -5,7 +5,7 @@ Issue a regulated token on Hedera whose compliance rules are keys the network en
 Paired with the Hedera docs page **Solutions → Finance Workflows → Regulated Token**.
 
 ```bash
-npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/regulated-token
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/regulated-token
 ```
 
 ```bash
