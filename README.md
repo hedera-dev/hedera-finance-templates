@@ -1,8 +1,6 @@
-# Scaffold-HBAR — Blank starter
+# collateral-mobility
 
 Minimal Hedera dApp baseline: Next.js, Hardhat or Foundry, and Hedera networks (testnet, mainnet, local fork). No opinionated product UI — you add the app on top.
-
-CLI key: `blank` (branch `templates/blank-template`).
 
 The full product guide — CLI flags, npm vs Yarn, deploy, and verify — lives in [Scaffold HBAR on Hedera docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index). This README is what is specific to **this** template.
 
@@ -17,10 +15,10 @@ The full product guide — CLI flags, npm vs Yarn, deploy, and verify — lives 
 Create a project from this template:
 
 ```bash
-npm create scaffold-hbar@latest -- --template blank
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/collateral-mobility
 ```
 
-`npx create-scaffold-hbar@latest --template blank` is equivalent. The CLI also asks for frontend, Solidity framework, network, and package manager.
+The CLI also asks for frontend, Solidity framework, network, and package manager.
 
 ## Work from this repository
 
@@ -73,6 +71,6 @@ Network and RPC URLs are in `packages/hardhat/hardhat.config.ts` and `packages/f
 ## Links
 
 - [Scaffold HBAR docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index)
-- [create-scaffold-hbar](https://github.com/hedera-dev/create-scaffold-hbar) — CLI
+- [scaffold-hbar](https://github.com/hedera-dev/create-scaffold-hbar) — CLI
 - [Hedera Portal faucet](https://portal.hedera.com/faucet)
 - [HashScan](https://hashscan.io/)
