@@ -5,7 +5,7 @@ Publish a tamper-evident audit trail of security-token actions to a Hedera Conse
 Paired with the Hedera docs page **Solutions → Finance Workflows → Publish a tamper-evident audit trail and regulator feed with HCS**.
 
 ```bash
-npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/hcs-audit-trail
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/hcs-audit-trail
 ```
 
 ```bash
