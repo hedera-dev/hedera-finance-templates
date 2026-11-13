@@ -1,78 +1,70 @@
-# Scaffold-HBAR — Blank starter
+# collateral-mobility
 
-Minimal Hedera dApp baseline: Next.js, Hardhat or Foundry, and Hedera networks (testnet, mainnet, local fork). No opinionated product UI — you add the app on top.
+Pledge a tokenised T-bill as collateral **without it ever leaving its owner's wallet**. The bill is issued through Hedera's Asset Tokenization Studio (ATS), and a USD stablecoin through the Stablecoin Studio. A borrower raises cash against the bill for a fixed term, then repays principal plus interest to get it back, or loses it to the lender.
 
-CLI key: `blank` (branch `templates/blank-template`).
+The collateral never moves. An **ATS hold** encumbers the bill in the borrower's own account, naming the repo contract as escrow and the lender as the only destination. The repo contract takes no custody and holds no role on the bill. The bill is valued by a feed that turns a published discount rate and the days remaining into a price, so it accretes toward par on its own and a rate shock is one published number.
 
-The full product guide — CLI flags, npm vs Yarn, deploy, and verify — lives in [Scaffold HBAR on Hedera docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index). This README is what is specific to **this** template.
-
-## What's in this template
-
-- Next.js App Router with wallet connect, **Debug Contracts**, and a local block explorer
-- Sample HTS contracts (`HederaToken`, `HtsTokenCreator`) so Debug Contracts has something to call
-- Hardhat and Foundry packages (the CLI can drop one)
-- Hashio RPC + Mirror Node config for Hedera testnet and mainnet
-- Package manager: Yarn (recommended) or npm — see `template.json`
-
-Create a project from this template:
+Paired with a Hedera docs page under **Solutions → Finance Workflows** (not yet published).
 
 ```bash
-npm create scaffold-hbar@latest -- --template blank
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/collateral-mobility
 ```
 
-`npx create-scaffold-hbar@latest --template blank` is equivalent. The CLI also asks for frontend, Solidity framework, network, and package manager.
+## Run it
 
-## Work from this repository
-
-This branch uses Yarn workspaces, so clone-and-run needs Yarn. Apps created with the CLI can use Yarn (default) or npm; see the [docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index).
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) ≥ 22.23.4 and < 23 (see `.nvmrc`)
-- [Git](https://git-scm.com/) with `user.name` and `user.email` configured
-- [Yarn](https://yarnpkg.com/) (default; required if you clone this repo) or npm if you scaffolded with the CLI. For Yarn, install via Corepack:
-  ```bash
-  corepack enable && corepack prepare yarn@stable --activate
-  ```
-- **If using Foundry:** [Foundry](https://book.getfoundry.sh/getting-started/installation) (`forge`, `cast`, `anvil`)
-
-### Quick start
+You need an ECDSA testnet account with HBAR ([Hedera Portal faucet](https://portal.hedera.com/faucet)). It is the lender: it deploys everything and holds the stablecoin. The key stays on the server.
 
 ```bash
 yarn install
-
-# Terminal 1: local Hedera-forked node
-yarn hardhat:chain
-
-# Terminal 2: deploy to that node (8545)
-yarn hardhat:deploy --network localhost
-
-# Terminal 3: Next.js app
-yarn next:start
+cp packages/nextjs/.env.example packages/nextjs/.env.local
+# set HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY (ECDSA; ED25519 is refused)
+yarn next:dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and use the **Debug Contracts** page.
+Nothing needs deploying first. **Set up** on the page issues the bill and the stablecoin, deploys the price feed and the repo contract, and creates a borrower account. It takes about six minutes on testnet.
 
-Frontend only (no local chain):
+## The tour
 
-```bash
-yarn install
-yarn next:dev
+The home page walks the desk one step at a time; the **Sandbox** tab has every control at once.
+
+1. **Set up** — the bill, the stablecoin, the feed, the repo contract and the borrower.
+2. **Pledge** — the borrower puts 10 bills on hold; they stay in the borrower's account.
+3. **Borrow** — the lender lends against the pledge after a 2% haircut.
+4. **Break it** — move the held bills, take the pledge back early, send the bills somewhere other than the lender, or pledge a hold the lender cannot collect. Each attempt runs against the live contracts and is refused.
+5. **Stress it** — publish a rate shock, push the loan past 99% loan-to-value, freeze the bill.
+6. **Resolve** — repay and get the bills back, or liquidate at the price trigger or the end of the term.
+
+Two clocks stay in view throughout: the bill's days to maturity (with a reset) and the loan's time left until term liquidation.
+
+**The demo clock:** ten seconds of real time is one day of the bill's life. The 30-day term runs in five minutes; the 91-day bill matures in about fifteen.
+
+## The numbers
+
+```
+bill          $1,000 face, 91 days, discount rate 5.00%  → $987.36 per bill
+pledge        10 bills                                   = $9,873.61
+haircut       2%                                         → capacity $9,676.14
+borrow        $9,600                                     → LTV 97.23%
+threshold     99% LTV                                    → liquidation at $969.70 per bill
+term          30 days at 4.80%                           → debt $9,638.40
 ```
 
-`yarn hardhat:deploy` without `--network localhost` targets the in-process `hardhat` network, not the long-running fork. Local Hardhat and Foundry workflows are in [`packages/hardhat/README.md`](packages/hardhat/README.md) and [`packages/foundry/README.md`](packages/foundry/README.md). Deploy and verify on testnet/mainnet: [Hedera docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index#deploying-to-testnet).
+A price liquidation on a 13-week bill needs a rate move of about 700bp, so failing to repay at term is the main way a loan is liquidated, as in real bill repo. The full design is in [`specs/collateral-mobility.md`](specs/collateral-mobility.md).
 
 ## Project layout
 
-- **packages/hardhat** — Hardhat config, contracts, `deploy/` scripts, tests
-- **packages/foundry** — Forge config, contracts, `script/` deploy scripts, tests
-- **packages/nextjs** — Next.js app, RainbowKit, wagmi, scaffold config
+- **packages/foundry/contracts** — `BillRepo.sol` (the repo contract) and `BillPriceFeed.sol` (the bill's price feed), with mocks of the bill and the stablecoin
+- **packages/foundry/test** — Foundry tests against those mocks, no network: `yarn foundry:test`
+- **packages/nextjs/app** — the tour (`_desk/Tour.tsx`), the sandbox, and the `api/desk` routes
+- **packages/nextjs/services/repo** — the server side: setup, actions, and the snapshot the page reads
 
-Network and RPC URLs are in `packages/hardhat/hardhat.config.ts` and `packages/foundry/foundry.toml` respectively.
+Every API route that writes signs with the operator key, so `middleware.ts` refuses writes that do not come from the app's own pages.
+
+This template is built on Scaffold-HBAR. For CLI flags, npm vs Yarn, deploying and verifying, see the [Scaffold HBAR docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index).
 
 ## Links
 
-- [Scaffold HBAR docs](https://docs.hedera.com/solutions/tools/scaffold-hbar/index)
-- [create-scaffold-hbar](https://github.com/hedera-dev/create-scaffold-hbar) — CLI
-- [Hedera Portal faucet](https://portal.hedera.com/faucet)
+- [Asset Tokenization Studio](https://github.com/hashgraph/asset-tokenization-studio)
+- [Stablecoin Studio](https://github.com/hashgraph/stablecoin-studio)
+- [scaffold-hbar](https://github.com/hedera-dev/create-scaffold-hbar) — CLI
 - [HashScan](https://hashscan.io/)
