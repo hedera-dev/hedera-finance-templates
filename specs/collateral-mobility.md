@@ -92,6 +92,17 @@ page would read `$0.00`.
 
 ## What a user sees
 
+**Two views of one desk.** The page header holds the title `Collateral mobility
+desk`, a one-line summary, and a toggle with two buttons: `#view-tour`, labelled
+`Tour`, and `#view-sandbox`, labelled `Sandbox`. `/` opens the tour; `/?view=sandbox`
+opens the Sandbox, and the toggle switches between them without a reload and
+keeps the address bar in step. Both views act on the same desk, so switching
+loses nothing. Only one view is on the page at a time, so an id appears at most
+once.
+
+The Sandbox is every control and every readout at once, for exploring out of
+order. Everything in this section up to **The tour** describes it.
+
 **Layout.** The title and a short explanation span the top: what a repo is, that
 the pledged bills never leave the borrower's account, and that the price is
 computed from a published rate and the days remaining rather than typed in.
@@ -264,7 +275,106 @@ Before the first read of a desk lands, every value in the position, bill and
 cash cards reads `—`: one em dash, never an empty element, and never a `0` that
 would be mistaken for a position.
 
+**The tour.** The default view at `/`, for a developer seeing the template for
+the first time. It shows one next action at a time instead of every control.
+
+- `#tour-progress` is a stepper of six steps: `Set up`, `Pledge`, `Borrow`,
+  `Break it`, `Stress it`, `Resolve`. The current step is marked with
+  `aria-current="step"`, finished steps carry a check, and the rest are numbered.
+  Until the first read of the desk lands, no step is marked current and the page
+  says it is reading the desk, so a reload never flashes the wrong step.
+- The step is **worked out from the desk**, not remembered by the tab, so a
+  reload, a server restart or a detour through the Sandbox lands on the right
+  one: no desk or setup running is `Set up`; bills under hold and no loan is
+  `Borrow`; an open loan is `Break it` or `Stress it`; a repaid or liquidated
+  loan is `Resolve`; anything else is `Pledge`.
+- While the loan is open the reader moves between `Break it` and `Stress it`
+  from the stepper. A new loan starts on `Break it`. A loan in a margin call,
+  liquidatable, or on a price that cannot be read moves to `Stress it` on its
+  own.
+- Above every step after `Set up`, two clocks count down live, once a second:
+  - `#bill-clock`, the bill: `#bill-days-remaining` demo days to maturity, the
+    same time in real minutes and seconds, a bar of the 91 days run, the price
+    `#bill-price` and the rate `#bill-discount-rate`, and `#restart-bill`,
+    labelled `Reset to 91 days`, which restarts the bill's clock. Once the bill
+    has matured the clock says a shock does nothing until it is reset.
+  - `#loan-clock`, the loan: while a loan is open, the demo days and real time
+    left until term liquidation, when anyone may liquidate whatever the price,
+    and a bar that turns amber in the last five days and red once the term is
+    over, saying anyone may liquidate now. With no loan it says when the term
+    starts; after one it says the loan was repaid or liquidated.
+- Every step has one card with a primary border holding its action, headed
+  `Step N of 6` and who acts (operator, borrower, lender), beside the picture of
+  the bills. A side column holds what supports it and the history of actions in
+  a collapsed section.
+- Every step can show the contract call its button makes, in an "Under the
+  hood" section, because the audience is developers. It starts closed so each
+  step fits a 1440 × 900 window without scrolling.
+- Longer explanations sit behind short expanders ("Why is it below $1,000?",
+  "Why 98% and 99%?"), closed by default.
+- A step that succeeds announces it in one plain sentence above the step, with
+  a link to the transaction on HashScan. A refusal shows beside its button,
+  decoded to its error name, using the same ids as the Sandbox.
+
+The steps:
+
+1. **Set up** — the setup card, as in the Sandbox, with `#setup-desk` and the
+   seven-step checklist, beside a list of the five steps that follow.
+2. **Pledge** — `#pledge-amount` (default `10`) and `#pledge-collateral`. A
+   picture of the borrower's bills, one tile per bill, with a padlock on each
+   bill under hold, and the lender's bills beside them. Beside it, an optional
+   attack, `#fake-pledge`, labelled `Try a fake pledge first` (see **The fake
+   pledge** under Behaviour), and the MetaMask borrower in a collapsed "Sign with
+   your own wallet" section.
+3. **Borrow** — `#borrow-amount` (default `9600`), `#borrow-preview` as one
+   sentence saying whether the contract would allow it and at what LTV, a
+   loan-to-value bar previewing that LTV, and `#open-loan`.
+4. **Break it** — the attacks, run against the live pledge while the loan is
+   open: `#transfer-pledged`, `#reclaim-pledge` and `#redirect-pledge`, each in
+   its own card with what it tries, the call it makes, and its result
+   (`#transfer-result`, `#reclaim-result`, `#redirect-result`). A refusal shows
+   in red with a cross and the error name: the attack failed, which is the
+   pledge holding. An acceptance shows in amber, saying something is broken. A
+   fourth card shows the fake pledge's
+   result from step 2 (`#wrong-escrow-result`), or that it runs on the Pledge
+   step. A count says how many of the four were tried and how many refused,
+   and beside it `#next-stress`, labelled `Next: stress the price →`, moves on.
+5. **Stress it** — a status line, `#loan-status-note`, coloured by the status:
+   green when healthy, amber in a margin call or on a stale price, red when
+   liquidatable. A loan-to-value bar on a 94–100% scale with lines at 98% (the
+   most that can be borrowed) and 99% (liquidation) and a needle at `#ltv`; when
+   the price cannot be read the bar says `Price unavailable` instead of placing
+   a needle. Beside it `#debt`, `#collateral-value`, `#ltv` and `#loan-status`,
+   with the rest of the position (`#principal`, `#interest-accrued`,
+   `#liquidation-price`, `#headroom`, `#borrowing-capacity`, `#term-remaining`,
+   `#accretion`, `#carry`) in a collapsed "More numbers" section. The controls
+   are grouped by who acts: the borrower (`#top-up-amount`, `#top-up`,
+   `#repay-loan`), the lender or anyone (`#liquidate`, with a sentence saying
+   whether it would be allowed now and why), and the market (`#shock-rate`,
+   `#apply-shock`, `#freeze-feed`, `#resume-feed`; the bill's reset is on its
+   clock). The suggested shock clears the 99% line with room to spare, because
+   the bill gains value every demo day and a shock that only just crosses the
+   line falls back under it before a liquidation lands.
+6. **Resolve** — whether the loan was repaid or liquidated, in a sentence, with
+   `#loan-status`, the bills picture showing where the bills ended up, and this
+   desk's successful transactions, oldest first, linked to HashScan. After a
+   repayment `#pledge-again` returns to the Pledge step. Either way
+   `#setup-again` sets up a fresh desk; after a liquidation it is the only way
+   on, since the borrower has no bills left, and a note says the template simplifies close-out: the lender keeps every bill,
+   where a real repo agreement would return anything above the debt.
+
+The tour is laid out for a window at least 1024px wide; it is not built for
+phones.
+
 ## Behaviour
+
+**The fake pledge.** `#fake-pledge` runs the wrong-escrow attack as one round
+trip so it does not use up the desk: the borrower pledges every bill naming the
+lender as escrow, the loan the tour borrows is asked for and refused with the
+escrow mismatch, and then the lender, as that hold's escrow, releases it, so the
+bills are free again for the real pledge. `#wrong-escrow-result` shows the
+refusal of the loan and says the fake hold was released. It needs every bill
+free, which is why it lives on the Pledge step.
 
 **The pledge encumbers in place.** `#pledge-collateral` has the borrower create
 an ATS hold over their own bills, naming the repo contract as escrow and the
@@ -402,11 +512,12 @@ loses them.
 
 ### Always true
 
-On a freshly loaded `/`, with no desk set up and no wallet connected. The
-controls render from the start and are merely disabled until there is a desk, so
-their labels are present on the first paint.
+On a freshly loaded `/?view=sandbox`, with no desk set up and no wallet
+connected. The controls render from the start and are merely disabled until
+there is a desk, so their labels are present on the first paint.
 
 - `/` returns HTTP 200.
+- `/?view=sandbox` returns HTTP 200.
 - `#setup-desk` reads `Set up desk`.
 - `#pledge-amount` holds `10`.
 - `#borrow-amount` holds `9600`.
@@ -432,7 +543,14 @@ their labels are present on the first paint.
 - The Stablecoin Studio business logic resolver `0.0.6349477` is a contract on
   testnet whose EVM address is forty hex digits.
 
-The last four are the template's premise rather than its behaviour: if either
+On a freshly loaded `/`, with no desk set up:
+
+- `#view-tour` reads `Tour`.
+- `#view-sandbox` reads `Sandbox`.
+- `#tour-progress` contains the text `Set up`.
+- `#tour-progress` contains the text `Resolve`.
+
+The last four in the first list are the template's premise rather than its behaviour: if either
 Studio moves, nothing here can work, and that is worth finding out in fifteen
 seconds instead of twenty minutes.
 
@@ -452,6 +570,9 @@ constants: they live inside the position card, which does not render before
 setup.
 
 ### The walkthrough
+
+Steps 1 to 21 run in the Sandbox, at `/?view=sandbox`, which carries every id
+they read. The tour's own walk follows them.
 
 1. Open `/` at 1024px or wider. Confirm the title spans the top, the two columns
    sit below it, and `#setup-desk` is visible without scrolling. Confirm the
@@ -524,6 +645,30 @@ setup.
 20. Inspect the responses the page received during all of the above for any
     private key.
 21. With no wallet connected, confirm `#add-wallet-borrower` is not offered.
+
+### The tour walkthrough
+
+22. Open `/`. Confirm `#tour-progress` marks `Set up` as the current step and
+    the page shows one action, `#setup-desk`.
+23. Set up a fresh desk. Confirm the tour moves to `Pledge` on its own when setup
+    finishes, and the bills picture shows 10 free bills.
+24. Press `#fake-pledge`. Confirm `#wrong-escrow-result` shows a refusal naming
+    the escrow mismatch, that the tour stayed on `Pledge`, and that afterwards
+    `#collateral-pledged` is `0` and `#collateral-free` is `10`.
+25. Press `#pledge-collateral`. Confirm the tour moves to `Borrow`, a sentence
+    above the step says the bills were pledged with a HashScan link, and the
+    picture shows 10 bills with a padlock.
+26. Press `#open-loan` with `9600`. Confirm the tour moves to `Break it`.
+27. Press `#transfer-pledged`, `#reclaim-pledge` and `#redirect-pledge`. Confirm
+    each shows a refusal in red and the count reads `4 of 4 tried · 4 refused`.
+28. Reload the page. Confirm it comes back on `Break it`, not on `Set up`.
+29. Press `#next-stress`. Enter `1400` in `#shock-rate` and press `#apply-shock`.
+    Confirm `#loan-status-note` turns red, `#loan-status` reads `LIQUIDATABLE`,
+    and the needle on the bar sits past the 99% line.
+30. Press `#liquidate`. Confirm the tour moves to `Resolve`, says the loan was
+    liquidated, and the bills picture shows the lender holding the 10 bills.
+31. Switch to `Sandbox` and back. Confirm both show the same desk and the tour
+    is still on `Resolve`.
 
 Connecting MetaMask and signing with it is **not** checked: the checker has no
 MetaMask wallet. It is still part of the feature and must be implemented as
@@ -799,4 +944,6 @@ will trip on it once, so the page spends a paragraph on it:
 - Attesting what the stablecoin's reserve actually holds; `proof-of-reserve`
   covers that.
 - HashPack and other non-EVM wallets.
+- Phone layouts for the tour. It is built for a desktop window at least 1024px
+  wide.
 - Persisting the desk's state across server restarts.

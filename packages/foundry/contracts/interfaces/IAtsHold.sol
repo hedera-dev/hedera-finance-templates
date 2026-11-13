@@ -30,29 +30,41 @@ interface IAtsHold {
     }
 
     /// @notice Encumbers `_hold.amount` of the caller's units in favour of `_hold.escrow`.
-    function createHoldByPartition(
-        bytes32 _partition,
-        Hold calldata _hold
-    ) external returns (bool success_, uint256 holdId_);
+    function createHoldByPartition(bytes32 _partition, Hold calldata _hold)
+        external
+        returns (bool success_, uint256 holdId_);
 
     /// @notice Escrow only. Moves held units to `_to`, which must equal the hold's `to`.
-    function executeHoldByPartition(
-        HoldIdentifier calldata _holdIdentifier,
-        address _to,
-        uint256 _amount
-    ) external returns (bool success_, bytes32 partition_);
+    function executeHoldByPartition(HoldIdentifier calldata _holdIdentifier, address _to, uint256 _amount)
+        external
+        returns (bool success_, bytes32 partition_);
 
     /// @notice Escrow only, before expiry. Returns held units to the holder.
-    function releaseHoldByPartition(
-        HoldIdentifier calldata _holdIdentifier,
-        uint256 _amount
-    ) external returns (bool success_);
+    function releaseHoldByPartition(HoldIdentifier calldata _holdIdentifier, uint256 _amount)
+        external
+        returns (bool success_);
 
     /// @notice Holder's own way out once the hold has expired.
     function reclaimHoldByPartition(HoldIdentifier calldata _holdIdentifier) external returns (bool success_);
 
-    function getHeldAmountForByPartition(
-        bytes32 _partition,
-        address _tokenHolder
-    ) external view returns (uint256 amount_);
+    function getHeldAmountForByPartition(bytes32 _partition, address _tokenHolder)
+        external
+        view
+        returns (uint256 amount_);
+
+    /// @notice Reads one hold. The deployed version returns SEVEN values, not the five of the struct:
+    ///         the escrow and destination come back as the hold recorded them, which is what lets a
+    ///         lender verify a pledge instead of trusting whoever reports it.
+    function getHoldForByPartition(HoldIdentifier calldata _holdIdentifier)
+        external
+        view
+        returns (
+            uint256 amount_,
+            uint256 expirationTimestamp_,
+            address escrow_,
+            address destination_,
+            bytes memory data_,
+            bytes memory operatorData_,
+            uint8 thirdPartyType_
+        );
 }
