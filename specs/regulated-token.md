@@ -1,7 +1,7 @@
-# Permissioned security
+# Regulated token
 
-Replace the home page at `/` with a transfer agent's desk for a permissioned
-security token. The token's compliance rules are **keys on the token itself**,
+Replace the home page at `/` with a transfer agent's desk for a regulated
+token. The token's compliance rules are **keys on the token itself**,
 enforced by the network: a holder without KYC cannot receive it, a frozen
 holder cannot move it, and the issuer can wipe a holding or pause the whole
 token. Every one of those admin actions needs **two officers**, because each
@@ -21,7 +21,7 @@ Three parties:
 
 ## What a user sees
 
-**Layout.** The title and a short explanation span the top: what a permissioned
+**Layout.** The title and a short explanation span the top: what a regulated
 security is, that the rules are keys the network enforces rather than contract
 code, and that admin actions take two officers. Below them, on a window at
 least 1024px wide, two columns scroll together with the page: what the learner

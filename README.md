@@ -1,11 +1,11 @@
-# permissioned-security
+# regulated-token
 
-Issue a permissioned security token on Hedera whose compliance rules are keys the network enforces — KYC, freeze, wipe and pause — and run a court-order freeze that takes two officers, because every admin key is a 2-of-3 threshold key. No smart contracts.
+Issue a regulated token on Hedera whose compliance rules are keys the network enforces — KYC, freeze, wipe and pause — and run a court-order freeze that takes two officers, because every admin key is a 2-of-3 threshold key. No smart contracts.
 
-Paired with the Hedera docs page **Solutions → Finance Workflows → Issue a permissioned security token and run a court-order freeze**.
+Paired with the Hedera docs page **Solutions → Finance Workflows → Regulated Token**.
 
 ```bash
-npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/permissioned-security
+npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/regulated-token
 ```
 
 ```bash
