@@ -7,7 +7,7 @@ The reserve is not a number anybody types in. It is the on-chain balance of a se
 Paired with a Hedera docs page under **Solutions → Finance Workflows** (not yet published).
 
 ```bash
-npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/proof-of-reserve
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/proof-of-reserve
 ```
 
 > Work in progress: this branch is the starter the reserve desk is being built on. `specs/proof-of-reserve.md` is what it is being built from.
