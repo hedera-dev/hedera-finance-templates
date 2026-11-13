@@ -5,7 +5,7 @@ A bond contract that pays its own coupons. Each payment schedules the next one t
 Paired with the Hedera docs page **Solutions → Finance Workflows → Pay bond coupons automatically with the Hedera Schedule Service**.
 
 ```bash
-npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/bond-coupons
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/bond-coupons
 ```
 
 ```bash
