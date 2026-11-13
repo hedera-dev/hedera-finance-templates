@@ -47,6 +47,7 @@ export const billAbi = parseAbi([
   "function getRoleMembers(bytes32 role, uint256 pageIndex, uint256 pageLength) view returns (address[])",
   "function createHoldByPartition(bytes32 _partition, Hold _hold) returns (bool success_, uint256 holdId_)",
   "function reclaimHoldByPartition(HoldIdentifier _holdIdentifier) returns (bool success_)",
+  "function releaseHoldByPartition(HoldIdentifier _holdIdentifier, uint256 _amount) returns (bool success_)",
   "function executeHoldByPartition(HoldIdentifier _holdIdentifier, address _to, uint256 _amount) returns (bool success_, bytes32 partition_)",
   "function getHeldAmountForByPartition(bytes32 _partition, address _tokenHolder) view returns (uint256 amount_)",
   "function getHoldForByPartition(HoldIdentifier _holdIdentifier) view returns (uint256 amount_, uint256 expirationTimestamp_, address escrow_, address destination_, bytes data_, bytes operatorData_, uint8 thirdPartyType_)",

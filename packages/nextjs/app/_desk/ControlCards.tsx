@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Card, Spinner } from "./ui";
+import { Card, Spinner, txLink } from "./ui";
 import type { ActionRequest, ActionResult, DeskView, PreviewResult } from "~~/types/repo";
 
 export type Run = (key: string, request: ActionRequest) => Promise<ActionResult>;
@@ -9,19 +9,27 @@ export type Run = (key: string, request: ActionRequest) => Promise<ActionResult>
 type Shared = { desk: DeskView | null; busy: string | null; run: Run };
 
 /** Shown for a refusal or a result: the decoded error name in front, then what it means. */
-function Outcome({ id, result }: { id: string; result: ActionResult | null }) {
+export function Outcome({ id, result }: { id: string; result: ActionResult | null }) {
   if (!result) return null;
   return (
     <div id={id} className={`alert ${result.ok ? "alert-success" : "alert-error"} text-sm break-words`}>
       <span className="min-w-0 [overflow-wrap:anywhere]">
         <strong className="font-mono">{result.result}</strong>
         {result.message ? ` — ${result.message}` : ""}
+        {result.txHash ? (
+          <>
+            {" "}
+            <a className="link" href={txLink(result.txHash)} target="_blank" rel="noreferrer">
+              View on HashScan
+            </a>
+          </>
+        ) : null}
       </span>
     </div>
   );
 }
 
-function Button({
+export function Button({
   id,
   label,
   busyKey,
@@ -46,7 +54,7 @@ function Button({
   );
 }
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
+export function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={htmlFor} className="text-sm font-medium">

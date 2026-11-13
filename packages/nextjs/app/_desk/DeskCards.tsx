@@ -334,31 +334,38 @@ export function ActivityCard({ entries }: { entries: ActivityEntry[] }) {
       title="Activity"
       caption="This session's actions, newest first, with the transaction on HashScan. The chain is the record; this list is not kept."
     >
-      <ol id="activity" className="m-0 p-0 list-none flex flex-col gap-2">
-        {entries.length === 0 ? (
-          <li className="text-sm text-base-content/60">Nothing yet.</li>
-        ) : (
-          entries.map(entry => (
-            <li key={entry.id} className="activity-entry text-sm border-b border-base-200 pb-2">
-              <span className="text-base-content/60 mr-2">{new Date(entry.at).toLocaleTimeString()}</span>
-              <span className="mr-2">{entry.action}</span>
-              <span className={`font-mono mr-2 ${entry.result === "SUCCESS" ? "text-success" : "text-error"}`}>
-                {entry.result}
-              </span>
-              {entry.txHash ? (
-                <a
-                  className="link link-primary font-mono text-xs break-all"
-                  href={txLink(entry.txHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {entry.txHash}
-                </a>
-              ) : null}
-            </li>
-          ))
-        )}
-      </ol>
+      <ActivityList entries={entries} />
     </Card>
+  );
+}
+
+/** This session's actions, newest first. Carries `#activity`, so a view renders it once. */
+export function ActivityList({ entries }: { entries: ActivityEntry[] }) {
+  return (
+    <ol id="activity" className="m-0 p-0 list-none flex flex-col gap-2">
+      {entries.length === 0 ? (
+        <li className="text-sm text-base-content/60">Nothing yet.</li>
+      ) : (
+        entries.map(entry => (
+          <li key={entry.id} className="activity-entry text-sm border-b border-base-200 pb-2">
+            <span className="text-base-content/60 mr-2">{new Date(entry.at).toLocaleTimeString()}</span>
+            <span className="mr-2">{entry.action}</span>
+            <span className={`font-mono mr-2 ${entry.result === "SUCCESS" ? "text-success" : "text-error"}`}>
+              {entry.result}
+            </span>
+            {entry.txHash ? (
+              <a
+                className="link link-primary font-mono text-xs break-all"
+                href={txLink(entry.txHash)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {entry.txHash}
+              </a>
+            ) : null}
+          </li>
+        ))
+      )}
+    </ol>
   );
 }

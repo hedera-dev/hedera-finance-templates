@@ -31,6 +31,8 @@ export type BillView = Linked & {
   feed: Linked;
   discountRateBps: string | null;
   daysRemaining: string | null;
+  /** When the feed prices the bill at par: the demo clock's maturity, which a restart moves. */
+  maturesAtMs: number | null;
   /** Dollars per bill, or `null` when the feed could not be read. */
   price: string | null;
   priceUpdatedAt: number | null;
@@ -53,6 +55,8 @@ export type PositionView = {
   carry: string | null;
   carryNote: string | null;
   termRemaining: string | null;
+  /** When the term ends and anyone may liquidate whatever the price. */
+  termEndsMs: number | null;
   status: LoanStatus;
   statusNote: string;
   /** What the buttons need to know. */
@@ -64,6 +68,8 @@ export type CashView = {
   proxy: Linked;
   token: Linked;
   reserve: Linked | null;
+  /** The bills the lender owns: none until a liquidation delivers the pledge. */
+  lenderBills: string | null;
   lenderCash: string | null;
   borrowerCash: string | null;
   reserveAmount: string | null;
@@ -136,6 +142,7 @@ export type PreviewResult = {
 export type ActionRequest =
   | { type: "pledge"; amount: string }
   | { type: "pledge-wrong-escrow"; amount: string }
+  | { type: "fake-pledge" }
   | { type: "open"; amount: string }
   | { type: "repay" }
   | { type: "top-up"; amount: string }

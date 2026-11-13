@@ -495,6 +495,40 @@ async function reclaimPledge(): Promise<ActionResult> {
 }
 
 /**
+ * The wrong-escrow attack as one round trip, so it costs no fresh desk: pledge every bill naming the lender as escrow,
+ * ask for the loan the tour borrows, then release the hold as its escrow so the bills are free for the real pledge.
+ * The refusal of the loan is the result; the release only tidies up after it.
+ */
+async function fakePledge(): Promise<ActionResult> {
+  const { operator, desk } = context();
+  const pledged = await pledge({ amount: MAX_PLEDGE_BILLS.toString() }, true);
+  if (!pledged.ok || desk.holdId === null) return pledged;
+  const holdId = desk.holdId;
+
+  const attempt = await openLoan({ amount: "9600" });
+  if (attempt.ok) return { ...attempt, message: "The loan opened against a fake pledge, which should not happen." };
+
+  const released = await execute({
+    account: operator.account,
+    action: "Release the fake pledge as its escrow, so the bills are free again",
+    to: desk.bill.address,
+    abi: billAbi,
+    functionName: "releaseHoldByPartition",
+    args: [{ partition: PARTITION, tokenHolder: desk.activeBorrower, holdId }, MAX_PLEDGE_BILLS],
+    // A release costs about what creating the hold did (~400k); less reverts with no reason given.
+    gas: GAS_CREATE_HOLD,
+  });
+  invalidateSnapshot();
+  if (released.ok) desk.holdId = null;
+  return {
+    ...attempt,
+    message: released.ok
+      ? `${attempt.message} The fake hold was then released, so the bills are free for the real pledge.`
+      : `${attempt.message} Releasing the fake hold failed (${released.name}), so set up a fresh desk before pledging.`,
+  };
+}
+
+/**
  * The escrow asks ATS to execute the hold to an address other than the one recorded on it. The repo contract has no
  * function that could send such a call, by design, so it is asked as the escrow with an `eth_call`: nothing is sent,
  * and ATS answers with what it would do.
@@ -647,6 +681,8 @@ export async function runAction(request: ActionRequest): Promise<ActionResult> {
       return reclaimPledge();
     case "redirect-pledge":
       return redirectPledge();
+    case "fake-pledge":
+      return fakePledge();
     case "add-wallet":
       return addWallet(request);
     case "register-wallet-pledge":
