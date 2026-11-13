@@ -4,10 +4,10 @@ scaffold-hbar templates for the Hedera docs **Solutions → Finance Workflows** 
 
 ## Install a template
 
-Each template lives on its own `templates/<name>` branch, because `create-scaffold-hbar` only accepts `owner/repo#ref` and cannot install from a subdirectory:
+Each template lives on its own `templates/<name>` branch, because `scaffold-hbar` only accepts `owner/repo#ref` and cannot install from a subdirectory:
 
 ```bash
-npx create-scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/<name>
+npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/<name>
 ```
 
 ## The templates
