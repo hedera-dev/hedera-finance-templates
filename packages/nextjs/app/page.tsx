@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { NextPage } from "next";
 import { ActionsPanel } from "~~/app/_components/audit/ActionsPanel";
+import { DecisionPanel } from "~~/app/_components/audit/DecisionPanel";
 import { DeskIds } from "~~/app/_components/audit/DeskIds";
 import { ForgeCard } from "~~/app/_components/audit/ForgeCard";
 import { SetupCard } from "~~/app/_components/audit/SetupCard";
@@ -10,7 +11,7 @@ import { SigningModePanel } from "~~/app/_components/audit/SigningModePanel";
 import { TrailTable } from "~~/app/_components/audit/TrailTable";
 import { useAuditDesk } from "~~/hooks/hcsAudit/useAuditDesk";
 import { useHashPackWallet } from "~~/hooks/hcsAudit/useHashPackWallet";
-import type { TokenAction } from "~~/services/hcsAudit/types";
+import type { RecordPayload } from "~~/services/hcsAudit/types";
 
 const Home: NextPage = () => {
   const desk = useAuditDesk();
@@ -30,14 +31,14 @@ const Home: NextPage = () => {
 
   const actionsDisabled = !desk.desk?.topicId || (isHashPack && (!wallet.accountId || !isAuthorizedPublisher));
 
-  const handleAction = (action: TokenAction, amount?: number, account?: string) => {
-    if (isHashPack) {
-      if (!wallet.accountId) return;
-      desk.performHashPackAction(action, wallet.accountId, wallet.signAndSubmit, amount, account);
-    } else {
-      desk.performIssuerAction(action, amount, account);
-    }
+  const handleRecord = (payload: RecordPayload) => {
+    if (!isHashPack) return desk.performIssuerRecord(payload);
+    if (!wallet.accountId) return Promise.resolve(null);
+    return desk.performHashPackRecord(payload, wallet.accountId, wallet.signAndSubmit);
   };
+
+  /** A failed record belongs to the card that submitted it, not to both of them. */
+  const errorFor = (kind: RecordPayload["kind"]) => (desk.recordError?.kind === kind ? desk.recordError.message : null);
 
   return (
     <div className="flex items-center flex-col grow">
@@ -49,6 +50,12 @@ const Home: NextPage = () => {
             a submit key, so only authorised publishers can write to it and every entry chains to the one before it —
             nothing can be rewritten, reordered, or skipped. The regulator&apos;s feed verifies this from the public
             mirror node alone, no server or key required.
+          </p>
+          <p className="text-sm text-base-content/70 m-0 mt-2">
+            The entries carry what the ledger cannot: why an action was taken, the authority behind it, and the hash of
+            the document that supports it. Decisions that never reach the network at all — a KYC review, a sanctions
+            screening, a board approval — are recorded the same way, and are the entries the mirror node has nothing to
+            compare against.
           </p>
         </div>
 
@@ -83,9 +90,17 @@ const Home: NextPage = () => {
             <ActionsPanel
               holderAccountId={desk.desk?.holderAccountId ?? null}
               disabled={actionsDisabled}
-              busyAction={desk.busyAction}
-              actionError={desk.actionError}
-              onAction={handleAction}
+              busyRecord={desk.busyRecord}
+              actionError={errorFor("action")}
+              onRecord={handleRecord}
+            />
+
+            <DecisionPanel
+              holderAccountId={desk.desk?.holderAccountId ?? null}
+              disabled={actionsDisabled}
+              busyRecord={desk.busyRecord}
+              decisionError={errorFor("decision")}
+              onRecord={handleRecord}
             />
 
             <ForgeCard disabled={false} forging={desk.forging} forgeResult={desk.forgeResult} onForge={desk.forge} />

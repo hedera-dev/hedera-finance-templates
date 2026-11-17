@@ -57,13 +57,16 @@ export async function POST() {
   const outsiderKey = desk.outsiderKey;
 
   const forgedEntry = {
-    v: 1 as const,
+    v: 2 as const,
     event: "transfer" as const,
     token: tokenId,
     account: holderAccountId,
     amount: 999999,
     tx: "forged",
     result: "SUCCESS",
+    reason: "forged by an unauthorised account",
+    authority: null,
+    evidence: null,
     prev: desk.lastHash,
   };
 

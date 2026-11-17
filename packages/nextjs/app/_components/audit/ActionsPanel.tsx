@@ -1,38 +1,64 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { TokenAction } from "~~/services/hcsAudit/types";
+import { DocumentHashField } from "~~/app/_components/audit/DocumentHashField";
+import { useEntryContext } from "~~/hooks/hcsAudit/useEntryContext";
+import {
+  type AuditEntry,
+  type BusyRecord,
+  MAX_REASON_LENGTH,
+  type RecordPayload,
+  type TokenAction,
+} from "~~/services/hcsAudit/types";
 
 type ActionsPanelProps = {
   disabled: boolean;
-  busyAction: TokenAction | null;
+  busyRecord: BusyRecord | null;
   actionError: string | null;
   /** The demo holder: the default target, and what an empty target field falls back to. */
   holderAccountId: string | null;
-  onAction: (action: TokenAction, amount?: number, account?: string) => void;
+  /** Resolves with the published entry, or null if nothing reached the topic. */
+  onRecord: (payload: RecordPayload) => Promise<AuditEntry | null>;
 };
 
 /**
  * One real token action per button, applied to the target account and logged to the trail.
  * The target defaults to the demo holder; any testnet account works once it has associated the
  * token, and a refusal (e.g. TOKEN_NOT_ASSOCIATED_TO_ACCOUNT) is logged like any other result.
+ *
+ * Reason, authority and a supporting document are what the entry adds to a freeze
+ * the ledger already has. They are optional here only so the buttons stay one click
+ * away in a demo; a decision, which has nothing on the ledger behind it, requires
+ * them.
  */
-export const ActionsPanel = ({ disabled, busyAction, actionError, holderAccountId, onAction }: ActionsPanelProps) => {
+export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountId, onRecord }: ActionsPanelProps) => {
   const [amount, setAmount] = useState("100");
   const [target, setTarget] = useState(holderAccountId ?? "");
+  const context = useEntryContext();
 
   // A fresh setup brings a new demo holder: follow it.
   useEffect(() => setTarget(holderAccountId ?? ""), [holderAccountId]);
 
-  const anyBusy = busyAction !== null;
+  const anyBusy = busyRecord !== null;
   const off = disabled || anyBusy;
-  const account = target.trim() || undefined;
-  const run = (action: TokenAction, value?: number) => onAction(action, value, account);
+
+  // Cleared only once the entry is on the topic: a reason or a document left in the
+  // form would be published again with the next action, which is not what happened.
+  const run = async (action: TokenAction, value?: number) => {
+    const entry = await onRecord({
+      kind: "action",
+      action,
+      amount: value,
+      account: target.trim() || undefined,
+      ...context.payload(),
+    });
+    if (entry) context.clear();
+  };
 
   const actionButton = (id: string, action: TokenAction, label: string, busyLabel: string) => (
-    <button id={id} className="btn btn-sm btn-outline" disabled={off} onClick={() => run(action)}>
-      {busyAction === action && <span className="loading loading-spinner loading-xs" />}
-      {busyAction === action ? busyLabel : label}
+    <button id={id} className="btn btn-sm btn-outline" disabled={off} onClick={() => void run(action)}>
+      {busyRecord === action && <span className="loading loading-spinner loading-xs" />}
+      {busyRecord === action ? busyLabel : label}
     </button>
   );
 
@@ -65,6 +91,48 @@ export const ActionsPanel = ({ disabled, busyAction, actionError, holderAccountI
         </span>
       </div>
 
+      <div className="flex flex-col gap-1">
+        <label htmlFor="action-reason" className="text-sm text-base-content/70">
+          Reason <span className="text-base-content/50">(optional)</span>
+        </label>
+        <input
+          id="action-reason"
+          className="input input-sm input-bordered w-full max-w-md"
+          placeholder="Case CMP-2026-114: court order received"
+          maxLength={MAX_REASON_LENGTH}
+          value={context.reason}
+          onChange={e => context.setReason(e.target.value)}
+          disabled={anyBusy}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="action-authority" className="text-sm text-base-content/70">
+          Authority <span className="text-base-content/50">(optional)</span>
+        </label>
+        <input
+          id="action-authority"
+          className="input input-sm input-bordered w-48 font-mono"
+          placeholder="0.0.1234"
+          value={context.authority}
+          onChange={e => context.setAuthority(e.target.value)}
+          disabled={anyBusy}
+        />
+        <span className="text-xs text-base-content/60">
+          The account that authorised this, if it was not the publisher. Recorded as the publisher&apos;s claim: the
+          topic&apos;s submit key proves who wrote the entry, not that this account agreed to it.
+        </span>
+      </div>
+
+      <DocumentHashField
+        id="action-evidence"
+        label="Supporting document (optional)"
+        hint="Hashed in your browser. Only the hash is published; the file never leaves this page."
+        disabled={anyBusy}
+        hash={context.evidence}
+        onHash={context.setEvidence}
+      />
+
       <div className="flex flex-wrap gap-2">
         {actionButton("action-grant-kyc", "grant_kyc", "Grant KYC", "Granting KYC…")}
         {actionButton("action-freeze", "freeze", "Freeze holder", "Freezing…")}
@@ -90,10 +158,10 @@ export const ActionsPanel = ({ disabled, busyAction, actionError, holderAccountI
             id="action-transfer"
             className="btn btn-sm btn-outline"
             disabled={off}
-            onClick={() => run("transfer", Number(amount))}
+            onClick={() => void run("transfer", Number(amount))}
           >
-            {busyAction === "transfer" && <span className="loading loading-spinner loading-xs" />}
-            {busyAction === "transfer" ? "Transferring…" : "Transfer"}
+            {busyRecord === "transfer" && <span className="loading loading-spinner loading-xs" />}
+            {busyRecord === "transfer" ? "Transferring…" : "Transfer"}
           </button>
         </div>
       </div>

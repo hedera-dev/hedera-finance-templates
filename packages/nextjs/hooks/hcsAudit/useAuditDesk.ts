@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
   AuditEntry,
+  BusyRecord,
   DeskState,
   Publisher,
+  RecordPayload,
   SetupEvent,
   SetupStepId,
   SigningMode,
-  TokenAction,
 } from "~~/services/hcsAudit/types";
 
 export type StepState = { status: "pending" | "active" | "done" | "failed"; id?: string; error?: string };
@@ -46,8 +47,12 @@ export function useAuditDesk() {
   const [justCompleted, setJustCompleted] = useState(false);
 
   const [signingMode, setSigningMode] = useState<SigningMode>("issuer");
-  const [busyAction, setBusyAction] = useState<TokenAction | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyRecord, setBusyRecord] = useState<BusyRecord | null>(null);
+  /**
+   * Which record failed, not just that one did: the desk has two cards that both
+   * publish, and one error string would print a failed freeze under both of them.
+   */
+  const [recordError, setRecordError] = useState<{ kind: RecordPayload["kind"]; message: string } | null>(null);
   const [lastEntry, setLastEntry] = useState<AuditEntry | null>(null);
 
   const [authorizing, setAuthorizing] = useState(false);
@@ -130,57 +135,63 @@ export function useAuditDesk() {
     }
   }, [refreshDesk]);
 
-  const performIssuerAction = useCallback(async (action: TokenAction, amount?: number, account?: string) => {
-    setBusyAction(action);
-    setActionError(null);
+  /** Which control to spin: the action's own id, or the decision's event. */
+  const busyIdFor = (payload: RecordPayload): BusyRecord =>
+    payload.kind === "action" ? payload.action : payload.event;
+
+  /** The published entry, or null if nothing reached the topic: the caller clears its form on an entry. */
+  const performIssuerRecord = useCallback(async (payload: RecordPayload): Promise<AuditEntry | null> => {
+    setBusyRecord(busyIdFor(payload));
+    setRecordError(null);
     try {
-      const data = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action", { action, amount, account });
+      const data = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action", payload);
       setLastEntry(data.entry);
+      return data.entry;
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
+      setRecordError({ kind: payload.kind, message: e instanceof Error ? e.message : String(e) });
+      return null;
     } finally {
-      setBusyAction(null);
+      setBusyRecord(null);
     }
   }, []);
 
-  const performHashPackAction = useCallback(
+  const performHashPackRecord = useCallback(
     async (
-      action: TokenAction,
+      payload: RecordPayload,
       walletAccountId: string,
       signAndSubmit: (bytes: string) => Promise<{ transactionId: string }>,
-      amount?: number,
-      account?: string,
-    ) => {
-      setBusyAction(action);
-      setActionError(null);
+    ): Promise<AuditEntry | null> => {
+      setBusyRecord(busyIdFor(payload));
+      setRecordError(null);
+      let published: AuditEntry | null = null;
       try {
         const prepared = await postJson<{ entry: AuditEntry; transactionBytes: string }>(
           "/api/hedera/audit/action/prepare",
-          {
-            action,
-            amount,
-            account,
-            walletAccountId,
-          },
+          { ...payload, walletAccountId },
         );
         try {
           const { transactionId } = await signAndSubmit(prepared.transactionBytes);
           const confirmed = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action/confirm", {
             transactionId,
           });
+          published = confirmed.entry;
           setLastEntry(confirmed.entry);
         } catch (signError) {
-          // The token action already happened on chain, so its entry still has to be
-          // published; declining the signature hands it back to the Issuer.
+          // The action already happened on chain, and a decision is already a fact the
+          // desk acted on, so the entry is published either way — declining the
+          // signature hands it back to the Issuer. It counts as published, so the form
+          // clears: the same document must not ride along on the next entry too.
           await postJson("/api/hedera/audit/action/confirm", { cancelled: true }).catch(() => undefined);
+          published = prepared.entry;
           const reason = signError instanceof Error ? signError.message : String(signError);
           throw new Error(`${reason} — the entry was published by the Issuer instead.`);
         }
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : String(e));
+        setRecordError({ kind: payload.kind, message: e instanceof Error ? e.message : String(e) });
       } finally {
-        setBusyAction(null);
+        setBusyRecord(null);
       }
+      return published;
     },
     [],
   );
@@ -231,11 +242,11 @@ export function useAuditDesk() {
     runSetup,
     signingMode,
     setSigningMode,
-    busyAction,
-    actionError,
+    busyRecord,
+    recordError,
     lastEntry,
-    performIssuerAction,
-    performHashPackAction,
+    performIssuerRecord,
+    performHashPackRecord,
     authorizing,
     authorizeError,
     authorize,

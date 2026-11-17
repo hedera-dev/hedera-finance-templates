@@ -1,4 +1,4 @@
-import type { AuditEntry } from "./types";
+import { AUDIT_EVENTS, type AuditEntry, MAX_REASON_LENGTH } from "./types";
 
 /**
  * Serializes an entry with a fixed key order. The exact bytes produced here are
@@ -15,6 +15,9 @@ export function serializeEntry(entry: AuditEntry): Uint8Array {
     amount: entry.amount,
     tx: entry.tx,
     result: entry.result,
+    reason: entry.reason,
+    authority: entry.authority,
+    evidence: entry.evidence,
     prev: entry.prev,
   };
   return new TextEncoder().encode(JSON.stringify(ordered));
@@ -29,18 +32,34 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 }
 
 function isAuditEvent(value: unknown): value is AuditEntry["event"] {
-  return (
-    value === "issue" || value === "grant_kyc" || value === "transfer" || value === "freeze" || value === "unfreeze"
-  );
+  return typeof value === "string" && (AUDIT_EVENTS as readonly string[]).includes(value);
 }
 
+const isHash = (value: unknown): boolean => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+
 /** Every key an entry has, and the only keys it may have. */
-const ENTRY_KEYS = ["v", "event", "token", "account", "amount", "tx", "result", "prev"] as const;
+const ENTRY_KEYS = [
+  "v",
+  "event",
+  "token",
+  "account",
+  "amount",
+  "tx",
+  "result",
+  "reason",
+  "authority",
+  "evidence",
+  "prev",
+] as const;
 
 /**
  * Validates that a decoded JSON value has exactly the shape of an audit entry:
  * these fields, no others, and an amount that is a whole number of tokens.
  * Anything else is not an entry, and the feed says so rather than reading it.
+ *
+ * Shape only: whether a `freeze` may carry a null `tx` is a question about the
+ * entry's claim, not its form, so `verifyFeed` decides that and says which rule it
+ * broke.
  */
 export function isAuditEntry(value: unknown): value is AuditEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -48,15 +67,17 @@ export function isAuditEntry(value: unknown): value is AuditEntry {
   const keys = Object.keys(v);
   if (keys.length !== ENTRY_KEYS.length || !ENTRY_KEYS.every(key => key in v)) return false;
   return (
-    v.v === 1 &&
+    v.v === 2 &&
     isAuditEvent(v.event) &&
     typeof v.token === "string" &&
     (v.account === null || typeof v.account === "string") &&
     (v.amount === null || (typeof v.amount === "number" && Number.isInteger(v.amount) && v.amount > 0)) &&
-    typeof v.tx === "string" &&
+    (v.tx === null || typeof v.tx === "string") &&
     typeof v.result === "string" &&
-    typeof v.prev === "string" &&
-    /^[0-9a-f]{64}$/.test(v.prev)
+    (v.reason === null || (typeof v.reason === "string" && v.reason.length <= MAX_REASON_LENGTH)) &&
+    (v.authority === null || typeof v.authority === "string") &&
+    (v.evidence === null || isHash(v.evidence)) &&
+    isHash(v.prev)
   );
 }
 

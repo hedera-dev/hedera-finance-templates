@@ -8,6 +8,12 @@ regulator's feed reads the topic straight from the public mirror node and
 verifies the trail itself: nothing can be rewritten, reordered or silently
 skipped. No smart contracts.
 
+Each entry carries what the ledger cannot: the reason behind an action, the
+authority that approved it, and the hash of the document supporting it. Entries
+can also record decisions that never reach the network at all — a KYC review, a
+sanctions screening, a board approval — which exist nowhere else, since nothing
+executes and there is no transaction for a mirror node to show.
+
 Three parties:
 
 - **Issuer** — the operator account the app runs with. Creates the audit topic
@@ -68,6 +74,17 @@ and then publishing its audit entry:
 - `#action-transfer` — `Transfer`, sending the amount in `#transfer-amount`
   (whole number, default `100`) from the Issuer to the target
 
+Alongside them, three optional fields that apply to whichever action is pressed:
+`#action-reason` (free text, at most 200 characters), `#action-authority` (an
+account id) and `#action-evidence` (a file input). The file is hashed in the
+browser and only the hash is ever sent or published; a note next to it says so.
+
+All three are emptied once the entry is on the topic, and only then. A reason or
+a document left in the form would be published again with the next action — a
+court order carried from a freeze onto the unfreeze after it — and the topic
+cannot be corrected afterwards. A failed action leaves the fields as they are,
+so the action can be pressed again without retyping them.
+
 An empty target falls back to the demo holder. A target that is not an account
 id (`0.0.1234`) is refused with a readable message before anything is signed,
 and so is the Issuer itself, which cannot be the target of its own token
@@ -115,6 +132,20 @@ account that is not an authorised publisher submit an entry to the topic.
 - `#wallet-state` — a sentence saying what to do next: connect, authorise, or
   perform an action
 
+**Off-chain decisions.** A second card records a decision that touches nothing on
+the network: `#decision-event` (one of `KYC review`, `Sanctions screening`,
+`Board approval`), `#decision-outcome` (`PASSED` or `REFUSED`),
+`#decision-account`, `#decision-reason`, `#decision-authority` and
+`#decision-evidence`, then `#record-decision`. The authority and the document
+are both required — `#record-decision` stays disabled until both are filled, and
+a note says so — because an entry with neither adds nothing the ledger does not
+already hold. The document is hashed in the browser like the one on the actions
+card, and the fields are emptied on a published entry the same way, so one
+document cannot be recorded twice as two decisions.
+
+An error from either card appears under the card that was pressed, and not under
+the other one.
+
 **The regulator feed.** `/regulator` has a topic input `#regulator-topic`,
 pre-filled from the `topic` query parameter. Below it:
 
@@ -124,10 +155,25 @@ pre-filled from the `topic` query parameter. Below it:
 - `#feed` — every entry, oldest first, as rows with the class `feed-entry`, each
   showing the sequence number, the readable consensus time, the event with its
   result beneath it (success and failure coloured differently), the target
-  account, the referenced transaction (shortened, full id on hover), the
-  publishing account, and one mark per check — sequence, chain, transaction —
-  in a single column, each mark explained on hover. Every column is visible
-  without horizontal scrolling on a 1100px-wide window.
+  account, the reason, the authority with what backs it, the evidence hash
+  (shortened, full hash on hover), the referenced transaction (shortened, full
+  id on hover) or `off chain` for an entry that has none, the publishing
+  account, and one mark per check — sequence, chain, transaction — in a single
+  column, each mark explained on hover. A check that does not apply to an entry
+  shows a dash, not a tick. A message that is not an entry at all shows a dash
+  for its transaction, never `off chain`: it is unreadable, not a decision
+  anyone recorded.
+
+  Under the authority account, the feed says how far the network backs it:
+  `signed by this account` when the entry was paid for by the account it names,
+  and `publisher's claim` when it was not. Neither is a check, and neither can
+  make a trail `BROKEN` — an officer named by a desk that published on their
+  behalf is the ordinary case. An entry naming no authority says nothing.
+
+- `#feed-document` — a file input that hashes a document in the browser and
+  compares it with every entry's evidence hash. `#document-verdict` names the
+  matching entries, or says that no entry carries that document's hash. Nothing
+  is uploaded: this page has no server to upload to.
 
 Form labels across both pages sit above their inputs, consistently.
 
@@ -142,17 +188,36 @@ publishes the first entry, `issue`, referencing the token-creation transaction.
 **Every entry has the same shape.** An entry is one HCS message whose content is
 a JSON object with exactly these fields:
 
-- `v` — `1`
-- `event` — one of `issue`, `grant_kyc`, `transfer`, `freeze`, `unfreeze`
+- `v` — `2`
+- `event` — a ledger event (`issue`, `grant_kyc`, `transfer`, `freeze`,
+  `unfreeze`) or a decision event (`kyc_review`, `sanctions_check`, `approval`)
 - `token` — the security token id
-- `account` — the target account id, or `null` for `issue`
+- `account` — the target or subject account id, or `null` for `issue`
 - `amount` — the whole-token amount for `transfer`, otherwise `null`
 - `tx` — the id of the Hedera transaction the entry records, in SDK form
-  (`0.0.1234@1700000000.123456789`)
-- `result` — that transaction's result code, e.g. `SUCCESS` or
-  `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`
+  (`0.0.1234@1700000000.123456789`), or `null` for a decision event, which has
+  no transaction because nothing executed
+- `result` — for a ledger event, that transaction's result code, e.g. `SUCCESS`
+  or `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`; for a decision, the outcome the
+  officer reached: `PASSED` or `REFUSED`
+- `reason` — why it happened (a case reference, an instruction), at most 200
+  characters, or `null`
+- `authority` — the account the publisher says authorised it, or `null`. The
+  submit key proves who wrote the entry, not that this account agreed to it, so
+  the regulator feed distinguishes the one case the mirror node can settle: an
+  entry whose publisher *is* the account it names was signed by that account.
+  Even then it is endorsement of the record, not authorisation of the action —
+  that needs the account's signature on the action itself, which is the
+  threshold key in the Regulated Token template
+- `evidence` — the lowercase hex SHA-256 of a supporting document, or `null`.
+  Only ever the hash: the document is digested in the browser and never sent
 - `prev` — the lowercase hex SHA-256 of the exact bytes of the previous entry's
   message, or 64 zeros for the first entry
+
+A decision event must carry an `authority` and `evidence`, must record `PASSED`
+or `REFUSED`, and must not cite a transaction. A ledger event must cite one. The
+regulator's feed enforces both, so a decision cannot borrow a real
+transaction's credibility and an action cannot escape being checked against one.
 
 **The chain never breaks.** Each entry's `prev` is the hash of the entry before
 it on the topic. If publishing an entry fails or a HashPack signature is
@@ -175,17 +240,34 @@ account. It decodes each message and checks:
 - sequence numbers run 1, 2, 3… with no gap
 - each entry's `prev` equals the SHA-256 of the previous message's exact bytes
   (64 zeros for sequence 1)
-- each entry's `tx` exists on the mirror node with the same result as the
-  entry's `result`
-- that transaction is the kind the entry's event implies, against the entry's
-  own token and account: `issue` a `TOKENCREATION` of that token, `grant_kyc` a
-  `TOKENGRANTKYC`, `freeze` a `TOKENFREEZE`, `unfreeze` a `TOKENUNFREEZE`, and a
-  successful `transfer` a `CRYPTOTRANSFER` whose legs credit the entry's
-  `amount` of that token to that account. Without this an authorised publisher
-  could log `freeze` / `SUCCESS` against any successful transaction on the
-  network and the feed would still call the trail verified
+- the entry's own fields agree with the kind of event it claims to be: a ledger
+  event cites a transaction, a decision cites none and carries its authority,
+  its evidence hash and a `PASSED` or `REFUSED` outcome
+- for a ledger event, that `tx` exists on the mirror node with the same result as
+  the entry's `result`
+- that transaction is the kind the entry's event implies, and acts on what the
+  entry says it acted on: `issue` a `TOKENCREATION` of that token, `grant_kyc` a
+  `TOKENGRANTKYC` of that account, `freeze` a `TOKENFREEZE` of that account,
+  `unfreeze` a `TOKENUNFREEZE` of that account, and a successful `transfer` a
+  `CRYPTOTRANSFER` whose legs credit the entry's `amount` of that token to that
+  account. Without this an authorised publisher could log `freeze` / `SUCCESS`
+  against any successful transaction on the network and the feed would still
+  call the trail verified.
 
-`#feed-status` is `VERIFIED` when every entry passes every check, `BROKEN` at
+  The id checked is the one the mirror node actually reports: for a freeze or a
+  KYC grant that is the account, and the token does not appear on the
+  transaction at all, so an entry's token cannot be confirmed for those events.
+  A refused transfer moved nothing, so it has no legs to check
+
+For a decision there is no transaction to look up, so the transaction check is
+reported as not applicable rather than passed: a tick would claim a
+verification nobody performed. What a decision can be checked against is its
+document, by whoever holds a copy — `#feed-document` hashes it and compares.
+The hash on its own tells a reader nothing about the document's contents, which
+is what makes it safe to commit a KYC file or a board minute to a public topic.
+
+`#feed-status` is `VERIFIED` when every entry passes every check that applies to
+it, `BROKEN` at
 the first failure — including a message that is not a valid entry — and
 `EMPTY` for a topic with no messages. The feed picks up new entries without a
 page reload, within about five seconds of them reaching the mirror node.

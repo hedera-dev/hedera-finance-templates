@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { parseActionRequest, performAction } from "~~/app/api/hedera/audit/_lib/actions";
+import { performRecord } from "~~/app/api/hedera/audit/_lib/actions";
 import { getOperator, getOperatorClient, hasOperatorEnv } from "~~/app/api/hedera/audit/_lib/operator";
 import { publishEntry } from "~~/app/api/hedera/audit/_lib/publish";
 import { getDesk, requireSetUp } from "~~/app/api/hedera/audit/_lib/state";
+import { type RecordBody, parseRecordRequest } from "~~/services/hcsAudit/record";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Issuer mode: the operator performs the token action and publishes its entry.
+ * Issuer mode: the operator performs the token action — or records a decision that
+ * never touches the network — and publishes the entry for it.
  *
  * The entry is queued before anything is reported back, so a publish that fails
  * here is retried rather than dropped — an action on chain with no entry is the
@@ -19,15 +21,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No operator configured." }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => null)) as { action?: string; amount?: number; account?: string } | null;
+  const body = (await req.json().catch(() => null)) as RecordBody | null;
   const desk = getDesk();
   try {
-    const request = parseActionRequest(body);
+    const request = parseRecordRequest(body);
     requireSetUp(desk);
 
     const client = getOperatorClient();
     const { accountId: operatorId } = getOperator();
-    const fields = await performAction(client, desk, operatorId.toString(), request);
+    const fields = await performRecord(client, desk, operatorId.toString(), request);
     const entry = await publishEntry(client, desk, fields);
 
     return NextResponse.json({ entry, pending: desk.entries.length });

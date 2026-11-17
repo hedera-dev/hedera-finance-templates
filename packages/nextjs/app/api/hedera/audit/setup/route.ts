@@ -128,6 +128,9 @@ export async function POST() {
           amount: null,
           tx: tokenCreateTx,
           result: tokenCreateResult,
+          reason: "Token created at setup",
+          authority: null,
+          evidence: null,
         });
 
         send({ type: "complete", topicId, tokenId, holderAccountId });

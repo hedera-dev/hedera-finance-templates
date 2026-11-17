@@ -8,7 +8,8 @@ import {
   TransferTransaction,
 } from "@hiero-ledger/sdk";
 import type { Desk } from "~~/app/api/hedera/audit/_lib/state";
-import { ACTION_EVENT, type EntryFields, type TokenAction } from "~~/services/hcsAudit/types";
+import type { RecordRequest } from "~~/services/hcsAudit/record";
+import { ACTION_EVENT, type EntryFields } from "~~/services/hcsAudit/types";
 
 export type ActionOutcome = { tx: string; result: string };
 
@@ -95,39 +96,36 @@ export function resolveTarget(raw: unknown, holderAccountId: string, issuerAccou
   return id;
 }
 
-export const TOKEN_ACTIONS: readonly TokenAction[] = ["grant_kyc", "transfer", "freeze", "unfreeze"];
-
 /**
- * The one place a token action is read off a request and performed.
+ * Produces the entry that records a request, performing it on chain first when there
+ * is anything to perform; reading the request lives in `services/hcsAudit/record.ts`.
+ * Both routes come through here, so the two can never drift on what they do or in
+ * what order they touch the network.
  *
- * Both the Issuer route and the HashPack route go through it, so the two can never
- * drift on what they validate or in what order they touch the network: the action
- * happens, and its entry is queued from the same outcome.
+ * A decision does nothing on chain by definition and returns immediately — the entry
+ * is its only artefact — but both kinds come back as the same `EntryFields` and go
+ * through the same publish queue.
  */
-export type ActionRequest = { action: TokenAction; amount: number | null; account?: unknown };
-
-export function parseActionRequest(
-  body: { action?: string; amount?: number; account?: unknown } | null,
-): ActionRequest {
-  const action = body?.action as TokenAction | undefined;
-  if (!action || !TOKEN_ACTIONS.includes(action)) throw new Error("Unknown action.");
-  if (action !== "transfer") return { action, amount: null, account: body?.account };
-  const amount = Number(body?.amount);
-  if (!Number.isInteger(amount) || amount <= 0) {
-    throw new Error("Transfer amount must be a positive whole number.");
-  }
-  return { action, amount, account: body?.account };
-}
-
-/** Performs the action on chain and returns the entry that records it, unchained. */
-export async function performAction(
+export async function performRecord(
   client: Client,
   desk: Desk & { tokenId: string; holderAccountId: string },
   issuerAccountId: string,
-  request: ActionRequest,
+  request: RecordRequest,
 ): Promise<EntryFields> {
   const account = resolveTarget(request.account, desk.holderAccountId, issuerAccountId);
   const tokenId = desk.tokenId;
+
+  if (request.kind === "decision") {
+    return {
+      event: request.event,
+      token: tokenId,
+      account,
+      amount: null,
+      tx: null,
+      result: request.outcome,
+      ...request.context,
+    };
+  }
 
   let outcome: ActionOutcome;
   if (request.action === "transfer") {
@@ -147,5 +145,6 @@ export async function performAction(
     amount: request.amount,
     tx: outcome.tx,
     result: outcome.result,
+    ...request.context,
   };
 }

@@ -1,10 +1,11 @@
 /**
  * Getting entries onto the topic, in order, exactly once.
  *
- * An action happens on chain before its entry can exist: the entry has to carry
- * that transaction's id and result. So the entry cannot be written first, and a
- * publish that fails after the action has run would leave an action with no
- * entry — which is the one thing this trail promises cannot happen.
+ * A token action happens on chain before its entry can exist: the entry carries that
+ * transaction's id and result. So the entry cannot be written first, and a publish
+ * that fails after the action has run would leave an action with no entry — the one
+ * thing this trail promises cannot happen. A decision has no transaction to wait for
+ * but shares the queue, so both kinds share one `prev` chain and one ordering.
  *
  * Instead every entry is queued the moment its action returns, and the queue is
  * drained separately: `prev` is read inside the serialized flush, a submission
@@ -79,7 +80,7 @@ async function takeBackFromWallet(desk: Desk, queued: QueuedEntry): Promise<bool
 
 /** The entry as it would be published right now: `prev` is whatever the chain is at. */
 function entryAt(desk: Desk, queued: QueuedEntry): AuditEntry {
-  return { v: 1, ...queued.fields, prev: desk.lastHash };
+  return { v: 2, ...queued.fields, prev: desk.lastHash };
 }
 
 /** Queues an entry. Nothing is on the topic, and the chain has not moved, until a flush. */
@@ -181,7 +182,7 @@ export async function publishEntry(client: Client, desk: Desk, fields: EntryFiel
   try {
     await flushEntries(client, desk);
   } catch (error) {
-    console.error("[audit] entry queued for retry", fields.event, fields.tx, error);
+    console.error("[audit] entry queued for retry", fields.event, fields.tx ?? "(no transaction)", error);
   }
   return queued.published ?? optimistic;
 }
