@@ -3,6 +3,7 @@ import { MIRROR_BASE_URL, type MirrorTopicMessage, type MirrorTransaction, fetch
 import {
   type AuditEntry,
   DECISION_OUTCOMES,
+  EVENT_TRANSACTION_ENTITY,
   EVENT_TRANSACTION_NAME,
   type LedgerEvent,
   ZERO_HASH,
@@ -23,14 +24,10 @@ export type FeedRow = {
    */
   checks: { sequence: boolean; chain: boolean; transaction: boolean | null };
   /**
-   * How much the network backs the entry's `authority`. Not a check: an officer who
-   * did not publish the entry is the ordinary case, not a failure, so this never
-   * makes a trail `BROKEN`.
-   *
-   * `proved` — the authority is the account that signed and paid for this
-   * submission, which the mirror node attests. It put its own key behind the entry.
-   * `claimed` — an account the publisher named, and nothing more.
-   * `null` — no authority named.
+   * How much the network backs the entry's `authority`: `proved` when that account
+   * paid for this submission and so signed it, `claimed` when another did, `null`
+   * when none is named. Not a check — publishing on an officer's behalf is the
+   * ordinary case, so this never makes a trail `BROKEN`.
    */
   authorityProof: "proved" | "claimed" | null;
 };
@@ -108,19 +105,15 @@ export async function verifyFeed(messages: MirrorTopicMessage[], baseUrl = MIRRO
 }
 
 /**
- * How far the network stands behind the account an entry names as its authority.
+ * `authority` is normally the publisher's word and no more: the submit key proves who
+ * *wrote* the entry, not that the account it names agreed to anything. The one case
+ * the mirror node can settle is an officer publishing through their own wallet —
+ * they signed and paid for that submission, and the message records which account
+ * did.
  *
- * `authority` is normally the publisher's word and no more: the submit key proves
- * who *wrote* the entry, not that the account it names agreed to anything. There is
- * one case the mirror node can settle, though. A compliance officer publishing
- * through their own wallet signs and pays for that submission, and the topic message
- * records which account did — so when the authority is that same account, the entry
- * is one it put its own key behind rather than one written about it.
- *
- * That is endorsement of the entry, not authorisation of the action it describes:
- * the officer signed the record, not the freeze. Proving the latter needs the
- * authorising account's signature on the action itself, which is a threshold key on
- * the token rather than anything a topic can do.
+ * Endorsement of the record, not authorisation of the action: the officer signed the
+ * entry, not the freeze. That needs their signature on the action itself, which is a
+ * threshold key on the token rather than anything a topic can do.
  */
 function authorityProofOf(entry: AuditEntry | null, payerAccountId: string): FeedRow["authorityProof"] {
   if (!entry?.authority) return null;
@@ -129,16 +122,11 @@ function authorityProofOf(entry: AuditEntry | null, payerAccountId: string): Fee
 
 /**
  * Why an entry's own fields contradict the kind of event it claims to be, or null
- * when they agree.
- *
- * This is what stops the two kinds of entry being mixed up to hide something. A
- * ledger event with no transaction would be an action nobody can check; a decision
- * event citing one would borrow a transaction's credibility for a claim the network
- * never saw. Both are refused before the mirror node is asked anything.
- *
- * A decision also has to carry its evidence hash and the authority behind it:
- * without them the entry says only that something happened, which is the thing
- * the ledger already does better.
+ * when they agree. This is what stops the two kinds being mixed up to hide
+ * something: a ledger event with no transaction is an action nobody can check, and a
+ * decision citing one borrows a transaction's credibility for a claim the network
+ * never saw. A decision must also carry its evidence and authority, without which it
+ * says only that something happened — the thing the ledger already does better.
  */
 function claimMismatch(entry: AuditEntry): string | null {
   if (isDecisionEvent(entry.event)) {
@@ -171,11 +159,14 @@ function transactionMismatch(entry: AuditEntry, mirrorTx: MirrorTransaction | nu
     return `${entry.event} must reference a ${expectedName}, not a ${mirrorTx.name}`;
   }
 
-  // Token-scoped transactions name the token they act on; a transfer names none, so
-  // its own legs are what tie it to this token, account and amount.
-  if (expectedName !== "CRYPTOTRANSFER") {
-    if (mirrorTx.entity_id !== entry.token) {
-      return `referenced transaction acts on ${mirrorTx.entity_id ?? "no token"}, not ${entry.token}`;
+  // What the transaction names depends on the event: a creation names the token, a
+  // freeze or a KYC grant names the account. A transfer names neither, so its own
+  // legs are what tie it to this token, account and amount.
+  const names = EVENT_TRANSACTION_ENTITY[entry.event as LedgerEvent];
+  if (names !== null) {
+    const expectedId = names === "token" ? entry.token : entry.account;
+    if (mirrorTx.entity_id !== expectedId) {
+      return `referenced transaction acts on ${mirrorTx.entity_id ?? "nothing"}, not ${names} ${expectedId}`;
     }
     return null;
   }

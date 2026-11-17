@@ -57,9 +57,9 @@ const ENTRY_KEYS = [
  * these fields, no others, and an amount that is a whole number of tokens.
  * Anything else is not an entry, and the feed says so rather than reading it.
  *
- * Shape only. Whether a `freeze` may carry a null `tx`, or a `kyc_review` a real
- * one, is a question about the entry's claim rather than its form, so `verifyFeed`
- * decides it and can report which rule the entry broke.
+ * Shape only: whether a `freeze` may carry a null `tx` is a question about the
+ * entry's claim, not its form, so `verifyFeed` decides that and says which rule it
+ * broke.
  */
 export function isAuditEntry(value: unknown): value is AuditEntry {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;

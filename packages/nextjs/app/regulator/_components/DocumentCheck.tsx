@@ -10,15 +10,10 @@ type DocumentCheckProps = {
 };
 
 /**
- * Checks a document the regulator already holds against the trail.
- *
- * This is the other half of the evidence hash, and the only place it pays off. The
- * topic carries a hash of a KYC file or a board minute, which on its own tells a
- * reader nothing. Hand the same file to this page and it is hashed here, in the
- * browser, and compared: a match says the entry was written about *this* document,
- * and a document produced later cannot match an entry already on the topic.
- *
- * Still nothing leaves the browser, and this page has no server to send it to.
+ * The other half of the evidence hash, and the only place it pays off. A hash on the
+ * topic tells a reader nothing on its own; hand this page the same file and a match
+ * says the entry was written about *this* document, which a document produced later
+ * cannot fake. Nothing leaves the browser, and this page has no server to send it to.
  */
 export const DocumentCheck = ({ rows, hash, onHash }: DocumentCheckProps) => {
   const matches = hash ? rows.filter(row => row.entry?.evidence === hash) : [];

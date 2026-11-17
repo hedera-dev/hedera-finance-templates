@@ -97,17 +97,14 @@ export function resolveTarget(raw: unknown, holderAccountId: string, issuerAccou
 }
 
 /**
- * Produces the entry that records a request, performing it on chain first when
- * there is anything to perform. Reading the request itself lives in
- * `services/hcsAudit/record.ts`.
+ * Produces the entry that records a request, performing it on chain first when there
+ * is anything to perform; reading the request lives in `services/hcsAudit/record.ts`.
+ * Both routes come through here, so the two can never drift on what they do or in
+ * what order they touch the network.
  *
- * Both the Issuer route and the HashPack route come through here, so the two can
- * never drift on what they do or in what order they touch the network: the action
- * happens, and its entry is queued from the same outcome.
- *
- * A decision does nothing on chain by definition, so it returns immediately: the
- * entry is the only artefact it ever has. Both kinds come back as the same
- * `EntryFields` and go through the same publish queue.
+ * A decision does nothing on chain by definition and returns immediately — the entry
+ * is its only artefact — but both kinds come back as the same `EntryFields` and go
+ * through the same publish queue.
  */
 export async function performRecord(
   client: Client,

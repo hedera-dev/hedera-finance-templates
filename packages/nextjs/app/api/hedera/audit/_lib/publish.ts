@@ -1,12 +1,11 @@
 /**
  * Getting entries onto the topic, in order, exactly once.
  *
- * A token action happens on chain before its entry can exist: the entry has to
- * carry that transaction's id and result. So the entry cannot be written first, and
- * a publish that fails after the action has run would leave an action with no
- * entry — which is the one thing this trail promises cannot happen. A decision
- * entry has no transaction to wait for, but it goes through the same queue so the
- * two kinds share one `prev` chain and one ordering.
+ * A token action happens on chain before its entry can exist: the entry carries that
+ * transaction's id and result. So the entry cannot be written first, and a publish
+ * that fails after the action has run would leave an action with no entry — the one
+ * thing this trail promises cannot happen. A decision has no transaction to wait for
+ * but shares the queue, so both kinds share one `prev` chain and one ordering.
  *
  * Instead every entry is queued the moment its action returns, and the queue is
  * drained separately: `prev` is read inside the serialized flush, a submission

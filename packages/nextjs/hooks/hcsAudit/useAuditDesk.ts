@@ -49,9 +49,8 @@ export function useAuditDesk() {
   const [signingMode, setSigningMode] = useState<SigningMode>("issuer");
   const [busyRecord, setBusyRecord] = useState<BusyRecord | null>(null);
   /**
-   * Which record failed, not just that one did. The desk shows two cards that both
-   * publish entries; a single error string would print a failed freeze underneath
-   * the decisions card as well.
+   * Which record failed, not just that one did: the desk has two cards that both
+   * publish, and one error string would print a failed freeze under both of them.
    */
   const [recordError, setRecordError] = useState<{ kind: RecordPayload["kind"]; message: string } | null>(null);
   const [lastEntry, setLastEntry] = useState<AuditEntry | null>(null);
@@ -178,11 +177,10 @@ export function useAuditDesk() {
           published = confirmed.entry;
           setLastEntry(confirmed.entry);
         } catch (signError) {
-          // A token action already happened on chain, and a decision is already a fact
-          // the desk acted on, so the entry still has to be published either way;
-          // declining the signature hands it back to the Issuer. The record did happen,
-          // so the form is still cleared: this entry is on the topic, and filling the
-          // same reason and document into the next one would attach them twice.
+          // The action already happened on chain, and a decision is already a fact the
+          // desk acted on, so the entry is published either way — declining the
+          // signature hands it back to the Issuer. It counts as published, so the form
+          // clears: the same document must not ride along on the next entry too.
           await postJson("/api/hedera/audit/action/confirm", { cancelled: true }).catch(() => undefined);
           published = prepared.entry;
           const reason = signError instanceof Error ? signError.message : String(signError);

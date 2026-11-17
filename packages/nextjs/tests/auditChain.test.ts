@@ -33,7 +33,14 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-/** Answers the only request `verifyFeed` makes: one transaction lookup per entry. */
+/**
+ * Answers the only request `verifyFeed` makes: one transaction lookup per entry.
+ *
+ * `entity_id` must be what the mirror node really returns, which is not always the
+ * token: a TOKENCREATION names the token, a TOKENFREEZE or TOKENGRANTKYC names the
+ * *account*. Mocking the token for all of them is what let a check that no real
+ * trail could pass sit here looking green.
+ */
 function mirrorReturns(byTxId: Record<string, MirrorTx>): void {
   globalThis.fetch = (async (url: string | URL) => {
     const match = /transactions\/([^?]+)/.exec(String(url));
@@ -78,11 +85,9 @@ function decision(fields: Partial<AuditEntry> = {}): AuditEntry {
 }
 
 /**
- * Chains entries into topic messages the way a correct publisher would.
- *
- * `payers` names who paid for each submission, which is the only thing the mirror
- * node can tell a regulator about who stood behind an entry. The Issuer (`0.0.1`)
- * publishes unless a test says otherwise.
+ * Chains entries into topic messages the way a correct publisher would. `payers` is
+ * who paid for each submission — the only thing the mirror node can say about who
+ * stood behind an entry. The Issuer (`0.0.1`) publishes unless a test says otherwise.
  */
 function topic(entries: AuditEntry[], payers: string[] = []): MirrorTopicMessage[] {
   const messages: MirrorTopicMessage[] = [];
@@ -109,7 +114,7 @@ test("a correctly chained trail verifies", async () => {
   ]);
   mirrorReturns({
     "0.0.1-1-1": { result: "SUCCESS", name: "TOKENCREATION", entity_id: TOKEN },
-    "0.0.1-2-2": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: TOKEN },
+    "0.0.1-2-2": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: HOLDER },
   });
 
   const result = await verifyFeed(messages);
@@ -162,7 +167,7 @@ test("a rewritten entry breaks the chain at that message", async () => {
   messages[0].message = Buffer.from(tampered).toString("base64");
   mirrorReturns({
     "0.0.1-9-9": { result: "SUCCESS", name: "TOKENCREATION", entity_id: TOKEN },
-    "0.0.1-2-2": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: TOKEN },
+    "0.0.1-2-2": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: HOLDER },
   });
 
   const result = await verifyFeed(messages);
@@ -171,13 +176,7 @@ test("a rewritten entry breaks the chain at that message", async () => {
   assert.match(result.brokenAt?.reason ?? "", /prev does not match/);
 });
 
-/**
- * The entries Jake's review asked for: a decision the ledger has no record of.
- *
- * There is nothing to look up on the mirror node, so the transaction check is
- * reported as not applicable rather than passed — a tick would claim a
- * verification nobody performed — and the trail as a whole still verifies.
- */
+/** Nothing to look up, so the transaction check is not applicable — and the trail still verifies. */
 test("a decision entry verifies with no transaction to check", async () => {
   const messages = topic([decision()]);
   mirrorReturns({});
@@ -195,8 +194,8 @@ test("a decision and a token action share one chain", async () => {
     entry({ event: "freeze", tx: "0.0.1@7.7" }),
   ]);
   mirrorReturns({
-    "0.0.1-6-6": { result: "SUCCESS", name: "TOKENGRANTKYC", entity_id: TOKEN },
-    "0.0.1-7-7": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: TOKEN },
+    "0.0.1-6-6": { result: "SUCCESS", name: "TOKENGRANTKYC", entity_id: HOLDER },
+    "0.0.1-7-7": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: HOLDER },
   });
 
   const result = await verifyFeed(messages);
@@ -207,13 +206,10 @@ test("a decision and a token action share one chain", async () => {
   );
 });
 
-/**
- * Borrowing a real transaction for a decision would let an off-chain claim inherit
- * the credibility of something the network actually did.
- */
+/** Borrowing a real transaction would let an off-chain claim inherit its credibility. */
 test("a decision citing a transaction is BROKEN", async () => {
   const messages = topic([decision({ tx: "0.0.1@8.8" })]);
-  mirrorReturns({ "0.0.1-8-8": { result: "PASSED", name: "TOKENGRANTKYC", entity_id: TOKEN } });
+  mirrorReturns({ "0.0.1-8-8": { result: "PASSED", name: "TOKENGRANTKYC", entity_id: HOLDER } });
 
   const result = await verifyFeed(messages);
   assert.equal(result.status, "BROKEN");
@@ -250,13 +246,25 @@ test("a decision recording a network status rather than an outcome is BROKEN", a
 });
 
 /**
- * The one thing the mirror node can settle about an authority.
- *
- * An officer who publishes through their own wallet signs and pays for that
- * submission, so an entry naming them is one they put their own key behind. An
- * entry naming an officer who did not publish it is a claim by whoever did — a
- * normal way to run a desk, and not a failure, which is why none of this can make
- * a trail BROKEN.
+ * The check this file once mocked its way past. A freeze that really happened to
+ * someone else must not back an entry claiming this account was frozen — and since
+ * the transaction endpoint reports no token for a freeze at all, the account is the
+ * only thing there is to tie the two together.
+ */
+test("a freeze citing another account's freeze is BROKEN", async () => {
+  const messages = topic([entry({ event: "freeze", tx: "0.0.1@4.4" })]);
+  mirrorReturns({ "0.0.1-4-4": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: "0.0.9999" } });
+
+  const result = await verifyFeed(messages);
+  assert.equal(result.status, "BROKEN");
+  assert.match(result.brokenAt?.reason ?? "", /acts on 0\.0\.9999, not account/);
+});
+
+/**
+ * An officer publishing through their own wallet signs and pays for that submission,
+ * so an entry naming them is one they put their own key behind. An entry naming an
+ * officer who did not publish it is a claim — a normal way to run a desk, and not a
+ * failure, which is why none of this can make a trail BROKEN.
  */
 test("an authority that published its own entry is backed by the network", async () => {
   mirrorReturns({});
@@ -271,7 +279,7 @@ test("an authority that published its own entry is backed by the network", async
 });
 
 test("an entry naming no authority claims nothing", async () => {
-  mirrorReturns({ "0.0.1-7-7": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: TOKEN } });
+  mirrorReturns({ "0.0.1-7-7": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: HOLDER } });
 
   const result = await verifyFeed(topic([entry({ event: "freeze", tx: "0.0.1@7.7" })]));
   assert.equal(result.rows[0].authorityProof, null);
@@ -279,11 +287,9 @@ test("an entry naming no authority claims nothing", async () => {
 });
 
 /**
- * The request parser, which decides what is allowed to become an entry at all.
- *
- * The rules it enforces are the verifier's rules, applied one step earlier, so the
- * desk cannot publish an entry its own regulator feed would call broken. These
- * assertions are the only thing keeping the two in agreement.
+ * The request parser enforces the verifier's rules one step earlier, so the desk
+ * cannot publish an entry its own feed would call broken. These assertions are the
+ * only thing keeping the two in agreement.
  */
 test("a decision request needs its authority and its document", () => {
   const decisionBody = {

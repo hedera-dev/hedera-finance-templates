@@ -245,13 +245,19 @@ account. It decodes each message and checks:
   its evidence hash and a `PASSED` or `REFUSED` outcome
 - for a ledger event, that `tx` exists on the mirror node with the same result as
   the entry's `result`
-- that transaction is the kind the entry's event implies, against the entry's
-  own token and account: `issue` a `TOKENCREATION` of that token, `grant_kyc` a
-  `TOKENGRANTKYC`, `freeze` a `TOKENFREEZE`, `unfreeze` a `TOKENUNFREEZE`, and a
-  successful `transfer` a `CRYPTOTRANSFER` whose legs credit the entry's
-  `amount` of that token to that account. Without this an authorised publisher
-  could log `freeze` / `SUCCESS` against any successful transaction on the
-  network and the feed would still call the trail verified
+- that transaction is the kind the entry's event implies, and acts on what the
+  entry says it acted on: `issue` a `TOKENCREATION` of that token, `grant_kyc` a
+  `TOKENGRANTKYC` of that account, `freeze` a `TOKENFREEZE` of that account,
+  `unfreeze` a `TOKENUNFREEZE` of that account, and a successful `transfer` a
+  `CRYPTOTRANSFER` whose legs credit the entry's `amount` of that token to that
+  account. Without this an authorised publisher could log `freeze` / `SUCCESS`
+  against any successful transaction on the network and the feed would still
+  call the trail verified.
+
+  The id checked is the one the mirror node actually reports: for a freeze or a
+  KYC grant that is the account, and the token does not appear on the
+  transaction at all, so an entry's token cannot be confirmed for those events.
+  A refused transfer moved nothing, so it has no legs to check
 
 For a decision there is no transaction to look up, so the transaction check is
 reported as not applicable rather than passed: a tick would claim a

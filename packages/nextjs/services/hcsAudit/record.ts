@@ -1,6 +1,5 @@
-// Reading a record request off the wire, and nothing else: no SDK, no server state.
-// Kept apart from `_lib/actions.ts` so the validation that guards the topic can be
-// tested on its own — it is the boundary between a request and a published entry.
+// Reading a record request off the wire, and nothing else: no SDK, no server state,
+// so the validation guarding the topic can be tested on its own.
 import {
   DECISION_EVENTS,
   DECISION_OUTCOMES,
@@ -56,11 +55,9 @@ function parseAccountId(raw: unknown, field: string): string {
 const blank = (raw: unknown): boolean => raw === undefined || raw === null || String(raw).trim() === "";
 
 /**
- * Reads the three context fields off a request.
- *
  * `evidence` is a hash and only ever a hash: the browser digests the document and
- * sends the digest, so the document itself never reaches this server, let alone the
- * topic. Anything that is not a SHA-256 hex digest is refused rather than published.
+ * sends the digest, so the file never reaches this server, let alone the topic.
+ * Anything that is not a SHA-256 hex digest is refused rather than published.
  */
 function parseContext(body: RecordBody | null): EntryContext {
   const reason = blank(body?.reason) ? null : String(body?.reason).trim();
@@ -79,11 +76,9 @@ function parseContext(body: RecordBody | null): EntryContext {
 }
 
 /**
- * Turns a request into one of the two kinds of record, or throws.
- *
- * `kind` is the discriminator the desk sends and the only one read here: sniffing
- * which fields happen to be present would let a request with both an action and a
- * decision event be taken for whichever the check looked at first.
+ * Turns a request into one of the two kinds of record, or throws. `kind` is the only
+ * discriminator read here: sniffing which fields happen to be present would let a
+ * request carrying both be taken for whichever the check looked at first.
  */
 export function parseRecordRequest(body: RecordBody | null): RecordRequest {
   const context = parseContext(body);

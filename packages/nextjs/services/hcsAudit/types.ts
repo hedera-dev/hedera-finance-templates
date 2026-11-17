@@ -6,20 +6,24 @@
 export type LedgerEvent = "issue" | "grant_kyc" | "transfer" | "freeze" | "unfreeze";
 
 /**
- * Events that record a decision taken off chain, which the ledger cannot hold at
- * all: a KYC review, a sanctions screening, a board approval. Nothing executes, so
- * these carry no transaction — what they carry instead is the reason, the authority
- * that approved it, and the hash of the document behind it.
+ * Events the ledger cannot hold at all: a KYC review, a sanctions screening, a board
+ * approval. Nothing executes, so they carry no transaction — what they carry instead
+ * is the reason, the authority that approved it, and the document's hash.
  */
 export type DecisionEvent = "kyc_review" | "sanctions_check" | "approval";
 
 export type AuditEvent = LedgerEvent | DecisionEvent;
 
-export const LEDGER_EVENTS: readonly LedgerEvent[] = ["issue", "grant_kyc", "transfer", "freeze", "unfreeze"];
-
 export const DECISION_EVENTS: readonly DecisionEvent[] = ["kyc_review", "sanctions_check", "approval"];
 
-export const AUDIT_EVENTS: readonly AuditEvent[] = [...LEDGER_EVENTS, ...DECISION_EVENTS];
+export const AUDIT_EVENTS: readonly AuditEvent[] = [
+  "issue",
+  "grant_kyc",
+  "transfer",
+  "freeze",
+  "unfreeze",
+  ...DECISION_EVENTS,
+];
 
 export function isDecisionEvent(event: AuditEvent): event is DecisionEvent {
   return (DECISION_EVENTS as readonly string[]).includes(event);
@@ -78,6 +82,24 @@ export const ACTION_EVENT: Record<TokenAction, AuditEvent> = {
   transfer: "transfer",
   freeze: "freeze",
   unfreeze: "unfreeze",
+};
+
+/**
+ * Which id the mirror node's `entity_id` carries for each event's transaction.
+ *
+ * It is not always the token. A `TOKENFREEZE` or `TOKENGRANTKYC` names the *account*
+ * it acts on, and the transaction endpoint does not report the token for them at
+ * all — so an entry's token cannot be checked there, and claiming otherwise would be
+ * a check that only ever passed against a mock. A `CRYPTOTRANSFER` names neither:
+ * its own legs carry the token, the account and the amount, which is stronger than
+ * any single id.
+ */
+export const EVENT_TRANSACTION_ENTITY: Record<LedgerEvent, "token" | "account" | null> = {
+  issue: "token",
+  grant_kyc: "account",
+  transfer: null,
+  freeze: "account",
+  unfreeze: "account",
 };
 
 /** What the desk asks the server to record: a token action, or a decision. */

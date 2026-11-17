@@ -14,13 +14,10 @@ type DocumentHashFieldProps = {
 
 /**
  * Turns a chosen document into the one thing that may be published about it: its
- * SHA-256 hash.
- *
- * The file is read and digested here, in the browser, and only the digest is lifted
- * into state. Nothing uploads it, so the server never sees the document and neither
- * does the topic — which is what makes it safe to commit a KYC file or a board
- * minute to a public ledger. Whoever holds the document can prove it is the one the
- * entry refers to by hashing it again; nobody else learns anything from the hash.
+ * SHA-256 hash. The file is digested here and only the digest is lifted into state,
+ * so neither the server nor the topic ever sees it — which is what makes it safe to
+ * commit a KYC file to a public ledger. Whoever holds the document proves it is the
+ * one the entry means by hashing it again; nobody else learns anything.
  */
 export const DocumentHashField = ({ id, label, hint, disabled, hash, onHash }: DocumentHashFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,9 +42,8 @@ export const DocumentHashField = ({ id, label, hint, disabled, hash, onHash }: D
     }
   };
 
-  // The hash is the parent's state, so the field follows it back to empty: its own
-  // Clear button and a parent clearing the form after a record take the same path,
-  // and neither leaves a filename sitting under a hash that is gone.
+  // The hash is the parent's state, so the field follows it back to empty — its own
+  // Clear button and a parent clearing the form after a record take the same path.
   useEffect(() => {
     if (hash !== null) return;
     setName(null);

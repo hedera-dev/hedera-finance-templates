@@ -5,11 +5,9 @@ import { hashscanAccountUrl, hashscanTransactionUrl } from "~~/services/hcsAudit
 import type { FeedRow } from "~~/services/hcsAudit/verify";
 
 /**
- * One labelled mark per check, e.g. "seq ✓"; the title spells out what failed.
- *
- * `ok === null` means the check does not apply to this entry — a decision has no
- * transaction to verify — and shows a dash. Deliberately not a tick: a tick there
- * would claim the mirror node confirmed something it was never asked about.
+ * One labelled mark per check, e.g. "seq ✓"; the title spells out what failed. `ok
+ * === null` is a check that does not apply — a decision has no transaction — and
+ * shows a dash, not a tick: a tick would claim a verification nobody performed.
  */
 function CheckMark({ ok, label, what }: { ok: boolean | null; label: string; what: string }) {
   if (ok === null) {
@@ -28,32 +26,22 @@ function CheckMark({ ok, label, what }: { ok: boolean | null; label: string; wha
 }
 
 /**
- * How far the network backs the named authority — the one field here whose status is
- * not pass or fail.
- *
- * An entry published by the officer it names is signed by that officer: the mirror
- * node says which account paid for the submission, so the claim is checkable. An
- * entry written *about* an officer by someone else is a name, which the trail puts
- * beyond editing but cannot confirm. Saying which is which is the honest version of
- * a field that would otherwise look like evidence.
+ * How far the network backs the named authority: the one column here that is not a
+ * pass or a fail. An entry published by the account it names was signed by that
+ * account; one written *about* an account is a name nothing on the network confirms.
  */
 function AuthorityProof({ proof, payer }: { proof: "proved" | "claimed"; payer: string }) {
-  if (proof === "proved") {
-    return (
-      <span
-        className="text-xs text-success"
-        title={`This entry was signed and paid for by ${payer}, so the authority it names put its own key behind the record. It does not prove that account authorised the action itself.`}
-      >
-        signed by this account
-      </span>
-    );
-  }
+  const proved = proof === "proved";
   return (
     <span
-      className="text-xs text-base-content/50"
-      title={`Published by ${payer}, not by the account named here: the publisher's claim, which nothing on the network confirms.`}
+      className={`text-xs ${proved ? "text-success" : "text-base-content/50"}`}
+      title={
+        proved
+          ? `Signed and paid for by ${payer}: the authority put its own key behind this record, though not behind the action it describes.`
+          : `Published by ${payer}, not by the account named here.`
+      }
     >
-      publisher&apos;s claim
+      {proved ? "signed by this account" : "publisher's claim"}
     </span>
   );
 }
