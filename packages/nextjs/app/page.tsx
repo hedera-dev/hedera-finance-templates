@@ -32,13 +32,13 @@ const Home: NextPage = () => {
   const actionsDisabled = !desk.desk?.topicId || (isHashPack && (!wallet.accountId || !isAuthorizedPublisher));
 
   const handleRecord = (payload: RecordPayload) => {
-    if (isHashPack) {
-      if (!wallet.accountId) return;
-      desk.performHashPackRecord(payload, wallet.accountId, wallet.signAndSubmit);
-    } else {
-      desk.performIssuerRecord(payload);
-    }
+    if (!isHashPack) return desk.performIssuerRecord(payload);
+    if (!wallet.accountId) return Promise.resolve(null);
+    return desk.performHashPackRecord(payload, wallet.accountId, wallet.signAndSubmit);
   };
+
+  /** A failed record belongs to the card that submitted it, not to both of them. */
+  const errorFor = (kind: RecordPayload["kind"]) => (desk.recordError?.kind === kind ? desk.recordError.message : null);
 
   return (
     <div className="flex items-center flex-col grow">
@@ -91,7 +91,7 @@ const Home: NextPage = () => {
               holderAccountId={desk.desk?.holderAccountId ?? null}
               disabled={actionsDisabled}
               busyRecord={desk.busyRecord}
-              actionError={desk.actionError}
+              actionError={errorFor("action")}
               onRecord={handleRecord}
             />
 
@@ -99,7 +99,7 @@ const Home: NextPage = () => {
               holderAccountId={desk.desk?.holderAccountId ?? null}
               disabled={actionsDisabled}
               busyRecord={desk.busyRecord}
-              decisionError={desk.actionError}
+              decisionError={errorFor("decision")}
               onRecord={handleRecord}
             />
 

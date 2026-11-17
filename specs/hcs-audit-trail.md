@@ -79,6 +79,12 @@ Alongside them, three optional fields that apply to whichever action is pressed:
 account id) and `#action-evidence` (a file input). The file is hashed in the
 browser and only the hash is ever sent or published; a note next to it says so.
 
+All three are emptied once the entry is on the topic, and only then. A reason or
+a document left in the form would be published again with the next action — a
+court order carried from a freeze onto the unfreeze after it — and the topic
+cannot be corrected afterwards. A failed action leaves the fields as they are,
+so the action can be pressed again without retyping them.
+
 An empty target falls back to the demo holder. A target that is not an account
 id (`0.0.1234`) is refused with a readable message before anything is signed,
 and so is the Issuer itself, which cannot be the target of its own token
@@ -131,10 +137,14 @@ the network: `#decision-event` (one of `KYC review`, `Sanctions screening`,
 `Board approval`), `#decision-outcome` (`PASSED` or `REFUSED`),
 `#decision-account`, `#decision-reason`, `#decision-authority` and
 `#decision-evidence`, then `#record-decision`. The authority and the document
-are both required — `#record-decision` stays disabled without them, and says
-which is missing — because an entry with neither adds nothing the ledger does
-not already hold. The document is hashed in the browser like the one on the
-actions card.
+are both required — `#record-decision` stays disabled until both are filled, and
+a note says so — because an entry with neither adds nothing the ledger does not
+already hold. The document is hashed in the browser like the one on the actions
+card, and the fields are emptied on a published entry the same way, so one
+document cannot be recorded twice as two decisions.
+
+An error from either card appears under the card that was pressed, and not under
+the other one.
 
 **The regulator feed.** `/regulator` has a topic input `#regulator-topic`,
 pre-filled from the `topic` query parameter. Below it:
@@ -147,9 +157,11 @@ pre-filled from the `topic` query parameter. Below it:
   result beneath it (success and failure coloured differently), the target
   account, the reason, the authority, the evidence hash (shortened, full hash on
   hover), the referenced transaction (shortened, full id on hover) or `off chain`
-  where there is none, the publishing account, and one mark per check —
+  for an entry that has none, the publishing account, and one mark per check —
   sequence, chain, transaction — in a single column, each mark explained on
-  hover. A check that does not apply to an entry shows a dash, not a tick.
+  hover. A check that does not apply to an entry shows a dash, not a tick. A
+  message that is not an entry at all shows a dash for its transaction, never
+  `off chain`: it is unreadable, not a decision anyone recorded.
 - `#feed-document` — a file input that hashes a document in the browser and
   compares it with every entry's evidence hash. `#document-verdict` names the
   matching entries, or says that no entry carries that document's hash. Nothing

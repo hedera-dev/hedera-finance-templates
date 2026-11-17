@@ -53,7 +53,7 @@ export const TrailTable = ({ topicId }: { topicId: string | null }) => {
                       {decoded?.entry.evidence ? shortHash(decoded.entry.evidence) : "—"}
                     </td>
                     <td>
-                      {decoded?.entry.tx ? (
+                      {decoded && decoded.entry.tx !== null ? (
                         <a
                           href={hashscanTransactionUrl(decoded.entry.tx)}
                           target="_blank"
@@ -63,13 +63,15 @@ export const TrailTable = ({ topicId }: { topicId: string | null }) => {
                         >
                           {shortTx(decoded.entry.tx)}
                         </a>
-                      ) : (
+                      ) : decoded ? (
                         <span
                           className="text-xs text-base-content/50"
                           title="A decision taken off chain: there is no transaction to link to."
                         >
                           off chain
                         </span>
+                      ) : (
+                        "\u2014"
                       )}
                     </td>
                     <td className="font-mono text-xs">{msg.payer_account_id}</td>

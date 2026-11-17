@@ -48,7 +48,12 @@ export function useAuditDesk() {
 
   const [signingMode, setSigningMode] = useState<SigningMode>("issuer");
   const [busyRecord, setBusyRecord] = useState<BusyRecord | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  /**
+   * Which record failed, not just that one did. The desk shows two cards that both
+   * publish entries; a single error string would print a failed freeze underneath
+   * the decisions card as well.
+   */
+  const [recordError, setRecordError] = useState<{ kind: RecordPayload["kind"]; message: string } | null>(null);
   const [lastEntry, setLastEntry] = useState<AuditEntry | null>(null);
 
   const [authorizing, setAuthorizing] = useState(false);
@@ -135,14 +140,17 @@ export function useAuditDesk() {
   const busyIdFor = (payload: RecordPayload): BusyRecord =>
     payload.kind === "action" ? payload.action : payload.event;
 
-  const performIssuerRecord = useCallback(async (payload: RecordPayload) => {
+  /** The published entry, or null if nothing reached the topic: the caller clears its form on an entry. */
+  const performIssuerRecord = useCallback(async (payload: RecordPayload): Promise<AuditEntry | null> => {
     setBusyRecord(busyIdFor(payload));
-    setActionError(null);
+    setRecordError(null);
     try {
       const data = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action", payload);
       setLastEntry(data.entry);
+      return data.entry;
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
+      setRecordError({ kind: payload.kind, message: e instanceof Error ? e.message : String(e) });
+      return null;
     } finally {
       setBusyRecord(null);
     }
@@ -153,9 +161,10 @@ export function useAuditDesk() {
       payload: RecordPayload,
       walletAccountId: string,
       signAndSubmit: (bytes: string) => Promise<{ transactionId: string }>,
-    ) => {
+    ): Promise<AuditEntry | null> => {
       setBusyRecord(busyIdFor(payload));
-      setActionError(null);
+      setRecordError(null);
+      let published: AuditEntry | null = null;
       try {
         const prepared = await postJson<{ entry: AuditEntry; transactionBytes: string }>(
           "/api/hedera/audit/action/prepare",
@@ -166,20 +175,25 @@ export function useAuditDesk() {
           const confirmed = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action/confirm", {
             transactionId,
           });
+          published = confirmed.entry;
           setLastEntry(confirmed.entry);
         } catch (signError) {
           // A token action already happened on chain, and a decision is already a fact
           // the desk acted on, so the entry still has to be published either way;
-          // declining the signature hands it back to the Issuer.
+          // declining the signature hands it back to the Issuer. The record did happen,
+          // so the form is still cleared: this entry is on the topic, and filling the
+          // same reason and document into the next one would attach them twice.
           await postJson("/api/hedera/audit/action/confirm", { cancelled: true }).catch(() => undefined);
+          published = prepared.entry;
           const reason = signError instanceof Error ? signError.message : String(signError);
           throw new Error(`${reason} — the entry was published by the Issuer instead.`);
         }
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : String(e));
+        setRecordError({ kind: payload.kind, message: e instanceof Error ? e.message : String(e) });
       } finally {
         setBusyRecord(null);
       }
+      return published;
     },
     [],
   );
@@ -231,7 +245,7 @@ export function useAuditDesk() {
     signingMode,
     setSigningMode,
     busyRecord,
-    actionError,
+    recordError,
     lastEntry,
     performIssuerRecord,
     performHashPackRecord,

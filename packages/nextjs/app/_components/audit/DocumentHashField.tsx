@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { sha256Hex } from "~~/services/hcsAudit/entry";
 
 type DocumentHashFieldProps = {
@@ -45,11 +45,18 @@ export const DocumentHashField = ({ id, label, hint, disabled, hash, onHash }: D
     }
   };
 
+  // The hash is the parent's state, so the field follows it back to empty: its own
+  // Clear button and a parent clearing the form after a record take the same path,
+  // and neither leaves a filename sitting under a hash that is gone.
+  useEffect(() => {
+    if (hash !== null) return;
+    setName(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }, [hash]);
+
   const clear = () => {
     onHash(null);
-    setName(null);
     setError(null);
-    if (inputRef.current) inputRef.current.value = "";
   };
 
   return (

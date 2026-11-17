@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { DocumentHashField } from "~~/app/_components/audit/DocumentHashField";
-import { type BusyRecord, MAX_REASON_LENGTH, type RecordPayload, type TokenAction } from "~~/services/hcsAudit/types";
+import { useEntryContext } from "~~/hooks/hcsAudit/useEntryContext";
+import {
+  type AuditEntry,
+  type BusyRecord,
+  MAX_REASON_LENGTH,
+  type RecordPayload,
+  type TokenAction,
+} from "~~/services/hcsAudit/types";
 
 type ActionsPanelProps = {
   disabled: boolean;
@@ -10,7 +17,8 @@ type ActionsPanelProps = {
   actionError: string | null;
   /** The demo holder: the default target, and what an empty target field falls back to. */
   holderAccountId: string | null;
-  onRecord: (payload: RecordPayload) => void;
+  /** Resolves with the published entry, or null if nothing reached the topic. */
+  onRecord: (payload: RecordPayload) => Promise<AuditEntry | null>;
 };
 
 /**
@@ -18,16 +26,15 @@ type ActionsPanelProps = {
  * The target defaults to the demo holder; any testnet account works once it has associated the
  * token, and a refusal (e.g. TOKEN_NOT_ASSOCIATED_TO_ACCOUNT) is logged like any other result.
  *
- * Reason, authority and a supporting document are optional here and required for a
- * decision: a freeze is already on the ledger, so the entry only has to add why it
- * was done and under whose instruction.
+ * Reason, authority and a supporting document are what the entry adds to a freeze
+ * the ledger already has. They are optional here only so the buttons stay one click
+ * away in a demo; a decision, which has nothing on the ledger behind it, requires
+ * them.
  */
 export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountId, onRecord }: ActionsPanelProps) => {
   const [amount, setAmount] = useState("100");
   const [target, setTarget] = useState(holderAccountId ?? "");
-  const [reason, setReason] = useState("");
-  const [authority, setAuthority] = useState("");
-  const [evidence, setEvidence] = useState<string | null>(null);
+  const context = useEntryContext();
 
   // A fresh setup brings a new demo holder: follow it.
   useEffect(() => setTarget(holderAccountId ?? ""), [holderAccountId]);
@@ -35,19 +42,21 @@ export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountI
   const anyBusy = busyRecord !== null;
   const off = disabled || anyBusy;
 
-  const run = (action: TokenAction, value?: number) =>
-    onRecord({
+  // Cleared only once the entry is on the topic: a reason or a document left in the
+  // form would be published again with the next action, which is not what happened.
+  const run = async (action: TokenAction, value?: number) => {
+    const entry = await onRecord({
       kind: "action",
       action,
       amount: value,
       account: target.trim() || undefined,
-      reason: reason.trim() || undefined,
-      authority: authority.trim() || undefined,
-      evidence: evidence ?? undefined,
+      ...context.payload(),
     });
+    if (entry) context.clear();
+  };
 
   const actionButton = (id: string, action: TokenAction, label: string, busyLabel: string) => (
-    <button id={id} className="btn btn-sm btn-outline" disabled={off} onClick={() => run(action)}>
+    <button id={id} className="btn btn-sm btn-outline" disabled={off} onClick={() => void run(action)}>
       {busyRecord === action && <span className="loading loading-spinner loading-xs" />}
       {busyRecord === action ? busyLabel : label}
     </button>
@@ -91,8 +100,8 @@ export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountI
           className="input input-sm input-bordered w-full max-w-md"
           placeholder="Case CMP-2026-114: court order received"
           maxLength={MAX_REASON_LENGTH}
-          value={reason}
-          onChange={e => setReason(e.target.value)}
+          value={context.reason}
+          onChange={e => context.setReason(e.target.value)}
           disabled={anyBusy}
         />
       </div>
@@ -105,8 +114,8 @@ export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountI
           id="action-authority"
           className="input input-sm input-bordered w-48 font-mono"
           placeholder="0.0.1234"
-          value={authority}
-          onChange={e => setAuthority(e.target.value)}
+          value={context.authority}
+          onChange={e => context.setAuthority(e.target.value)}
           disabled={anyBusy}
         />
         <span className="text-xs text-base-content/60">
@@ -120,8 +129,8 @@ export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountI
         label="Supporting document (optional)"
         hint="Hashed in your browser. Only the hash is published; the file never leaves this page."
         disabled={anyBusy}
-        hash={evidence}
-        onHash={setEvidence}
+        hash={context.evidence}
+        onHash={context.setEvidence}
       />
 
       <div className="flex flex-wrap gap-2">
@@ -149,7 +158,7 @@ export const ActionsPanel = ({ disabled, busyRecord, actionError, holderAccountI
             id="action-transfer"
             className="btn btn-sm btn-outline"
             disabled={off}
-            onClick={() => run("transfer", Number(amount))}
+            onClick={() => void run("transfer", Number(amount))}
           >
             {busyRecord === "transfer" && <span className="loading loading-spinner loading-xs" />}
             {busyRecord === "transfer" ? "Transferring…" : "Transfer"}

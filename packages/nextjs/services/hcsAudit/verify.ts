@@ -1,6 +1,13 @@
 import { base64ToBytes, parseEntryBytes, sha256Hex } from "./entry";
 import { MIRROR_BASE_URL, type MirrorTopicMessage, type MirrorTransaction, fetchMirrorTransaction } from "./mirror";
-import { type AuditEntry, EVENT_TRANSACTION_NAME, type LedgerEvent, ZERO_HASH, isDecisionEvent } from "./types";
+import {
+  type AuditEntry,
+  DECISION_OUTCOMES,
+  EVENT_TRANSACTION_NAME,
+  type LedgerEvent,
+  ZERO_HASH,
+  isDecisionEvent,
+} from "./types";
 
 export type FeedStatus = "VERIFIED" | "BROKEN" | "EMPTY";
 
@@ -106,8 +113,8 @@ function claimMismatch(entry: AuditEntry): string | null {
     if (entry.tx !== null) return `${entry.event} is a decision and must not cite a transaction`;
     if (entry.evidence === null) return `${entry.event} must carry the hash of the document behind it`;
     if (entry.authority === null) return `${entry.event} must name the authority that approved it`;
-    if (entry.result !== "PASSED" && entry.result !== "REFUSED") {
-      return `${entry.event} must record PASSED or REFUSED, not ${entry.result}`;
+    if (!DECISION_OUTCOMES.includes(entry.result as (typeof DECISION_OUTCOMES)[number])) {
+      return `${entry.event} must record ${DECISION_OUTCOMES.join(" or ")}, not ${entry.result}`;
     }
     return null;
   }

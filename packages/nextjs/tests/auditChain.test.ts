@@ -5,11 +5,15 @@
  * trusts nothing but the mirror node can tell whether the trail was reordered,
  * rewritten or skipped. These are the cases where saying VERIFIED would be wrong.
  *
+ * `parseRecordRequest` is the other end of the same claim: the point where a request
+ * becomes something that will be published and can never be taken back.
+ *
  * Run with `yarn check-audit` — compiled by tsc and run by node's own test runner,
  * so there is no test framework to install.
  */
 import { isAuditEntry, serializeEntry } from "../services/hcsAudit/entry";
 import type { MirrorTopicMessage } from "../services/hcsAudit/mirror";
+import { parseRecordRequest } from "../services/hcsAudit/record";
 import type { AuditEntry } from "../services/hcsAudit/types";
 import { verifyFeed } from "../services/hcsAudit/verify";
 import assert from "node:assert/strict";
@@ -237,6 +241,57 @@ test("a decision recording a network status rather than an outcome is BROKEN", a
   const result = await verifyFeed(topic([decision({ result: "SUCCESS" })]));
   assert.equal(result.status, "BROKEN");
   assert.match(result.brokenAt?.reason ?? "", /must record PASSED or REFUSED/);
+});
+
+/**
+ * The request parser, which decides what is allowed to become an entry at all.
+ *
+ * The rules it enforces are the verifier's rules, applied one step earlier, so the
+ * desk cannot publish an entry its own regulator feed would call broken. These
+ * assertions are the only thing keeping the two in agreement.
+ */
+test("a decision request needs its authority and its document", () => {
+  const decisionBody = {
+    kind: "decision",
+    event: "kyc_review",
+    outcome: "PASSED",
+    authority: OFFICER,
+    evidence: DOC_HASH,
+  };
+
+  const parsed = parseRecordRequest(decisionBody);
+  assert.equal(parsed.kind, "decision");
+  assert.deepEqual(parsed.context, { reason: null, authority: OFFICER, evidence: DOC_HASH });
+
+  assert.throws(() => parseRecordRequest({ ...decisionBody, evidence: undefined }), /document behind it/);
+  assert.throws(() => parseRecordRequest({ ...decisionBody, authority: undefined }), /authority that approved/);
+  assert.throws(() => parseRecordRequest({ ...decisionBody, outcome: "SUCCESS" }), /PASSED or REFUSED/);
+  assert.throws(() => parseRecordRequest({ ...decisionBody, event: "freeze" }), /Unknown decision/);
+});
+
+test("the context fields are validated before anything is published", () => {
+  const action = { kind: "action", action: "freeze" };
+
+  assert.deepEqual(parseRecordRequest(action).context, { reason: null, authority: null, evidence: null });
+  assert.deepEqual(parseRecordRequest({ ...action, reason: "   " }).context.reason, null, "blank is absent, not empty");
+  assert.equal(parseRecordRequest({ ...action, evidence: DOC_HASH.toUpperCase() }).context.evidence, DOC_HASH);
+
+  assert.throws(() => parseRecordRequest({ ...action, reason: "x".repeat(201) }), /at most 200/);
+  assert.throws(() => parseRecordRequest({ ...action, authority: "the compliance desk" }), /Authority must look like/);
+  assert.throws(() => parseRecordRequest({ ...action, evidence: "deadbeef" }), /64 hex characters/);
+});
+
+/**
+ * `kind` is the discriminator, not whichever field happens to be present: a body
+ * carrying both must not be read as the kind that would skip the other's rules.
+ */
+test("a request is the kind it says it is", () => {
+  const both = { kind: "action", action: "freeze", event: "approval", outcome: "PASSED" };
+  assert.equal(parseRecordRequest(both).kind, "action");
+
+  assert.throws(() => parseRecordRequest({ kind: "decision", action: "freeze" }), /Unknown decision/);
+  assert.throws(() => parseRecordRequest({ action: "transfer", amount: 0 }), /positive whole number/);
+  assert.throws(() => parseRecordRequest(null), /Unknown action/);
 });
 
 test("an entry is exactly its fields: no extras, whole amounts, a real hash", () => {

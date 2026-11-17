@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { DocumentHashField } from "~~/app/_components/audit/DocumentHashField";
+import { useEntryContext } from "~~/hooks/hcsAudit/useEntryContext";
 import {
+  type AuditEntry,
   type BusyRecord,
   DECISION_EVENTS,
   type DecisionEvent,
@@ -16,7 +18,8 @@ type DecisionPanelProps = {
   busyRecord: BusyRecord | null;
   decisionError: string | null;
   holderAccountId: string | null;
-  onRecord: (payload: RecordPayload) => void;
+  /** Resolves with the published entry, or null if nothing reached the topic. */
+  onRecord: (payload: RecordPayload) => Promise<AuditEntry | null>;
 };
 
 const DECISION_LABELS: Record<DecisionEvent, { title: string; hint: string }> = {
@@ -35,8 +38,8 @@ const DECISION_LABELS: Record<DecisionEvent, { title: string; hint: string }> = 
  * reason, the authority behind it, and the hash of the document that proves it was
  * not written after the fact.
  *
- * All three are required here, and the regulator's feed refuses a decision entry
- * missing any of them.
+ * The authority and the document are both required here, and the regulator's feed
+ * refuses a decision entry missing either of them.
  */
 export const DecisionPanel = ({
   disabled,
@@ -48,26 +51,26 @@ export const DecisionPanel = ({
   const [event, setEvent] = useState<DecisionEvent>("kyc_review");
   const [outcome, setOutcome] = useState<DecisionOutcome>("PASSED");
   const [target, setTarget] = useState(holderAccountId ?? "");
-  const [reason, setReason] = useState("");
-  const [authority, setAuthority] = useState("");
-  const [evidence, setEvidence] = useState<string | null>(null);
+  const context = useEntryContext();
 
   useEffect(() => setTarget(holderAccountId ?? ""), [holderAccountId]);
 
   const anyBusy = busyRecord !== null;
-  const complete = Boolean(evidence) && authority.trim() !== "";
+  const complete = Boolean(context.evidence) && context.authority.trim() !== "";
   const off = disabled || anyBusy || !complete;
 
-  const record = () =>
-    onRecord({
+  // Cleared once the entry is published, so a second click cannot record the same
+  // document and the same authority again as if a second decision had been taken.
+  const record = async () => {
+    const entry = await onRecord({
       kind: "decision",
       event,
       outcome,
       account: target.trim() || undefined,
-      reason: reason.trim() || undefined,
-      authority: authority.trim(),
-      evidence: evidence ?? undefined,
+      ...context.payload(),
     });
+    if (entry) context.clear();
+  };
 
   return (
     <div className="bg-base-100 rounded-2xl shadow-md p-6 border border-base-300 flex flex-col gap-4">
@@ -138,8 +141,8 @@ export const DecisionPanel = ({
           className="input input-sm input-bordered w-full max-w-md"
           placeholder="Case KYC-2026-0094: renewal, documents verified"
           maxLength={MAX_REASON_LENGTH}
-          value={reason}
-          onChange={e => setReason(e.target.value)}
+          value={context.reason}
+          onChange={e => context.setReason(e.target.value)}
           disabled={anyBusy}
         />
       </div>
@@ -152,8 +155,8 @@ export const DecisionPanel = ({
           id="decision-authority"
           className="input input-sm input-bordered w-48 font-mono"
           placeholder="0.0.1234"
-          value={authority}
-          onChange={e => setAuthority(e.target.value)}
+          value={context.authority}
+          onChange={e => context.setAuthority(e.target.value)}
           disabled={anyBusy}
         />
         <span className="text-xs text-base-content/60">Required: the account that approved this decision.</span>
@@ -164,12 +167,12 @@ export const DecisionPanel = ({
         label="Document"
         hint="Required. Hashed in your browser; only the hash is published."
         disabled={anyBusy}
-        hash={evidence}
-        onHash={setEvidence}
+        hash={context.evidence}
+        onHash={context.setEvidence}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <button id="record-decision" className="btn btn-sm btn-primary" disabled={off} onClick={record}>
+        <button id="record-decision" className="btn btn-sm btn-primary" disabled={off} onClick={() => void record()}>
           {busyRecord === event && <span className="loading loading-spinner loading-xs" />}
           {busyRecord === event ? "Recording…" : "Record decision"}
         </button>

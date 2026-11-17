@@ -75,7 +75,7 @@ export const FeedTable = ({ rows, matchedHash }: { rows: FeedRow[]; matchedHash?
                 {row.entry?.evidence ? shortHash(row.entry.evidence) : "—"}
               </td>
               <td>
-                {row.entry?.tx ? (
+                {row.entry && row.entry.tx !== null ? (
                   <a
                     href={hashscanTransactionUrl(row.entry.tx)}
                     target="_blank"
@@ -85,10 +85,14 @@ export const FeedTable = ({ rows, matchedHash }: { rows: FeedRow[]; matchedHash?
                   >
                     {shortTx(row.entry.tx)}
                   </a>
-                ) : (
+                ) : row.entry ? (
                   <span className="text-base-content/50" title="Recorded off chain: there is no transaction.">
                     off chain
                   </span>
+                ) : (
+                  // Not an entry at all. Saying "off chain" here would describe an
+                  // unreadable message as a decision the desk meant to record.
+                  "\u2014"
                 )}
               </td>
               <td>

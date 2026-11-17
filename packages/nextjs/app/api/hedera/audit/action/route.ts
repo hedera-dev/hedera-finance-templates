@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { type RecordBody, parseRecordRequest, performRecord } from "~~/app/api/hedera/audit/_lib/actions";
+import { performRecord } from "~~/app/api/hedera/audit/_lib/actions";
 import { getOperator, getOperatorClient, hasOperatorEnv } from "~~/app/api/hedera/audit/_lib/operator";
 import { publishEntry } from "~~/app/api/hedera/audit/_lib/publish";
 import { getDesk, requireSetUp } from "~~/app/api/hedera/audit/_lib/state";
+import { type RecordBody, parseRecordRequest } from "~~/services/hcsAudit/record";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
