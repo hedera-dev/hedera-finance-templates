@@ -1,11 +1,24 @@
 "use client";
 
-import { formatConsensus, shortTx } from "~~/services/hcsAudit/format";
+import { formatConsensus, shortHash, shortTx } from "~~/services/hcsAudit/format";
 import { hashscanAccountUrl, hashscanTransactionUrl } from "~~/services/hcsAudit/mirror";
 import type { FeedRow } from "~~/services/hcsAudit/verify";
 
-/** One labelled mark per check, e.g. "seq ✓"; the title spells out what failed. */
-function CheckMark({ ok, label, what }: { ok: boolean; label: string; what: string }) {
+/**
+ * One labelled mark per check, e.g. "seq ✓"; the title spells out what failed.
+ *
+ * `ok === null` means the check does not apply to this entry — a decision has no
+ * transaction to verify — and shows a dash. Deliberately not a tick: a tick there
+ * would claim the mirror node confirmed something it was never asked about.
+ */
+function CheckMark({ ok, label, what }: { ok: boolean | null; label: string; what: string }) {
+  if (ok === null) {
+    return (
+      <span className="text-base-content/40" title={`${what}: not applicable to this entry`}>
+        <span className="sr-only">{label} not applicable</span>–
+      </span>
+    );
+  }
   return (
     <span className={ok ? "text-success" : "text-error"} title={`${what}: ${ok ? "passed" : "failed"}`}>
       <span className="sr-only">{label} </span>
@@ -14,7 +27,7 @@ function CheckMark({ ok, label, what }: { ok: boolean; label: string; what: stri
   );
 }
 
-export const FeedTable = ({ rows }: { rows: FeedRow[] }) => {
+export const FeedTable = ({ rows, matchedHash }: { rows: FeedRow[]; matchedHash?: string | null }) => {
   if (rows.length === 0) return null;
 
   return (
@@ -26,6 +39,9 @@ export const FeedTable = ({ rows }: { rows: FeedRow[] }) => {
             <th>Consensus time</th>
             <th>Event / result</th>
             <th>Account</th>
+            <th>Reason</th>
+            <th>Authority</th>
+            <th>Document</th>
             <th>Transaction</th>
             <th>Published by</th>
             <th title="sequence · hash chain · transaction">Checks</th>
@@ -47,8 +63,19 @@ export const FeedTable = ({ rows }: { rows: FeedRow[] }) => {
                 </span>
               </td>
               <td className="font-mono text-xs">{row.entry?.account ?? "—"}</td>
+              <td className="max-w-xs truncate" title={row.entry?.reason ?? undefined}>
+                {row.entry?.reason ?? "—"}
+              </td>
+              <td className="font-mono text-xs">{row.entry?.authority ?? "—"}</td>
+              <td
+                className={`font-mono text-xs ${matchedHash && row.entry?.evidence === matchedHash ? "text-success font-bold" : ""}`}
+                title={row.entry?.evidence ?? undefined}
+                data-evidence={row.entry?.evidence ?? undefined}
+              >
+                {row.entry?.evidence ? shortHash(row.entry.evidence) : "—"}
+              </td>
               <td>
-                {row.entry ? (
+                {row.entry?.tx ? (
                   <a
                     href={hashscanTransactionUrl(row.entry.tx)}
                     target="_blank"
@@ -59,7 +86,9 @@ export const FeedTable = ({ rows }: { rows: FeedRow[] }) => {
                     {shortTx(row.entry.tx)}
                   </a>
                 ) : (
-                  "—"
+                  <span className="text-base-content/50" title="Recorded off chain: there is no transaction.">
+                    off chain
+                  </span>
                 )}
               </td>
               <td>

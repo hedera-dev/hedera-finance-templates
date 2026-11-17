@@ -18,7 +18,9 @@ import test, { afterEach } from "node:test";
 
 const TOKEN = "0.0.5005";
 const HOLDER = "0.0.6006";
+const OFFICER = "0.0.7007";
 const ZERO = "0".repeat(64);
+const DOC_HASH = "a".repeat(64);
 
 type MirrorTx = { result: string; name: string; entity_id: string | null; token_transfers?: unknown[] };
 
@@ -43,16 +45,32 @@ function mirrorReturns(byTxId: Record<string, MirrorTx>): void {
 
 function entry(fields: Partial<AuditEntry>): AuditEntry {
   return {
-    v: 1,
+    v: 2,
     event: "freeze",
     token: TOKEN,
     account: HOLDER,
     amount: null,
     tx: "0.0.1@1700000000.000000001",
     result: "SUCCESS",
+    reason: null,
+    authority: null,
+    evidence: null,
     prev: ZERO,
     ...fields,
   } as AuditEntry;
+}
+
+/** A well-formed decision: no transaction, but an authority and a document. */
+function decision(fields: Partial<AuditEntry> = {}): AuditEntry {
+  return entry({
+    event: "kyc_review",
+    tx: null,
+    result: "PASSED",
+    reason: "Case KYC-2026-0094",
+    authority: OFFICER,
+    evidence: DOC_HASH,
+    ...fields,
+  });
 }
 
 /** Chains entries into topic messages the way a correct publisher would. */
@@ -143,12 +161,95 @@ test("a rewritten entry breaks the chain at that message", async () => {
   assert.match(result.brokenAt?.reason ?? "", /prev does not match/);
 });
 
+/**
+ * The entries Jake's review asked for: a decision the ledger has no record of.
+ *
+ * There is nothing to look up on the mirror node, so the transaction check is
+ * reported as not applicable rather than passed — a tick would claim a
+ * verification nobody performed — and the trail as a whole still verifies.
+ */
+test("a decision entry verifies with no transaction to check", async () => {
+  const messages = topic([decision()]);
+  mirrorReturns({});
+
+  const result = await verifyFeed(messages);
+  assert.equal(result.status, "VERIFIED");
+  assert.equal(result.rows[0].checks.transaction, null, "not applicable, not passed");
+  assert.equal(result.rows[0].checks.chain, true);
+});
+
+test("a decision and a token action share one chain", async () => {
+  const messages = topic([
+    entry({ event: "grant_kyc", tx: "0.0.1@6.6", reason: "Case KYC-2026-0094 cleared", authority: OFFICER }),
+    decision({ event: "sanctions_check", result: "REFUSED" }),
+    entry({ event: "freeze", tx: "0.0.1@7.7" }),
+  ]);
+  mirrorReturns({
+    "0.0.1-6-6": { result: "SUCCESS", name: "TOKENGRANTKYC", entity_id: TOKEN },
+    "0.0.1-7-7": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: TOKEN },
+  });
+
+  const result = await verifyFeed(messages);
+  assert.equal(result.status, "VERIFIED");
+  assert.deepEqual(
+    result.rows.map(r => r.checks.transaction),
+    [true, null, true],
+  );
+});
+
+/**
+ * Borrowing a real transaction for a decision would let an off-chain claim inherit
+ * the credibility of something the network actually did.
+ */
+test("a decision citing a transaction is BROKEN", async () => {
+  const messages = topic([decision({ tx: "0.0.1@8.8" })]);
+  mirrorReturns({ "0.0.1-8-8": { result: "PASSED", name: "TOKENGRANTKYC", entity_id: TOKEN } });
+
+  const result = await verifyFeed(messages);
+  assert.equal(result.status, "BROKEN");
+  assert.match(result.brokenAt?.reason ?? "", /must not cite a transaction/);
+});
+
+/** The mirror image: an on-chain action with no transaction is unverifiable. */
+test("a token action with no transaction is BROKEN", async () => {
+  const messages = topic([entry({ event: "freeze", tx: null })]);
+  mirrorReturns({});
+
+  const result = await verifyFeed(messages);
+  assert.equal(result.status, "BROKEN");
+  assert.match(result.brokenAt?.reason ?? "", /must cite its transaction/);
+});
+
+test("a decision with no document or no authority is BROKEN", async () => {
+  mirrorReturns({});
+
+  const noDoc = await verifyFeed(topic([decision({ evidence: null })]));
+  assert.equal(noDoc.status, "BROKEN");
+  assert.match(noDoc.brokenAt?.reason ?? "", /hash of the document/);
+
+  const noAuthority = await verifyFeed(topic([decision({ authority: null })]));
+  assert.equal(noAuthority.status, "BROKEN");
+  assert.match(noAuthority.brokenAt?.reason ?? "", /must name the authority/);
+});
+
+test("a decision recording a network status rather than an outcome is BROKEN", async () => {
+  mirrorReturns({});
+  const result = await verifyFeed(topic([decision({ result: "SUCCESS" })]));
+  assert.equal(result.status, "BROKEN");
+  assert.match(result.brokenAt?.reason ?? "", /must record PASSED or REFUSED/);
+});
+
 test("an entry is exactly its fields: no extras, whole amounts, a real hash", () => {
   const good = entry({ event: "transfer", amount: 100 });
   assert.equal(isAuditEntry(good), true);
   assert.equal(isAuditEntry({ ...good, note: "extra" }), false, "unknown fields are not entries");
   assert.equal(isAuditEntry({ ...good, amount: 1.5 }), false, "amounts are whole tokens");
   assert.equal(isAuditEntry({ ...good, prev: "zz".repeat(32) }), false, "prev must be a hash");
+  assert.equal(isAuditEntry({ ...good, evidence: "not-a-hash" }), false, "evidence must be a hash");
+  assert.equal(isAuditEntry({ ...good, evidence: DOC_HASH }), true, "a hash is fine");
+  assert.equal(isAuditEntry({ ...good, reason: "x".repeat(201) }), false, "reason is capped");
+  assert.equal(isAuditEntry({ ...good, v: 1 }), false, "v1 entries are not accepted");
+  assert.equal(isAuditEntry(decision()), true, "a decision is an entry: tx may be null");
   const { amount, ...missing } = good;
   void amount;
   assert.equal(isAuditEntry(missing), false, "a missing field is not an entry");

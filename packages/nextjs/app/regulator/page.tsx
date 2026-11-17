@@ -3,12 +3,14 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { NextPage } from "next";
+import { DocumentCheck } from "~~/app/regulator/_components/DocumentCheck";
 import { FeedTable } from "~~/app/regulator/_components/FeedTable";
 import { useRegulatorFeed } from "~~/hooks/hcsAudit/useRegulatorFeed";
 
 const RegulatorContent = () => {
   const searchParams = useSearchParams();
   const [topic, setTopic] = useState(searchParams.get("topic") ?? "");
+  const [checkedHash, setCheckedHash] = useState<string | null>(null);
 
   useEffect(() => {
     const fromQuery = searchParams.get("topic");
@@ -23,7 +25,9 @@ const RegulatorContent = () => {
         <h1 className="text-2xl font-bold mb-2">Regulator feed</h1>
         <p className="text-sm text-base-content/70 m-0">
           Reads the audit topic straight from the public Hedera mirror node and re-derives every check itself: this page
-          needs nothing from the issuer&apos;s server, no key, and no account.
+          needs nothing from the issuer&apos;s server, no key, and no account. Entries recorded off chain — a KYC
+          review, a sanctions screening, a board approval — have no transaction to confirm, so their transaction check
+          reads as not applicable; what they can be checked against is the document behind them.
         </p>
       </div>
 
@@ -59,7 +63,11 @@ const RegulatorContent = () => {
           </div>
         )}
 
-        <FeedTable rows={result.rows} />
+        <FeedTable rows={result.rows} matchedHash={checkedHash} />
+
+        {topic && result.rows.length > 0 && (
+          <DocumentCheck rows={result.rows} hash={checkedHash} onHash={setCheckedHash} />
+        )}
       </div>
     </div>
   );

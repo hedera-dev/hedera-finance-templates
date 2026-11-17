@@ -8,7 +8,16 @@ import {
   TransferTransaction,
 } from "@hiero-ledger/sdk";
 import type { Desk } from "~~/app/api/hedera/audit/_lib/state";
-import { ACTION_EVENT, type EntryFields, type TokenAction } from "~~/services/hcsAudit/types";
+import {
+  ACTION_EVENT,
+  DECISION_EVENTS,
+  DECISION_OUTCOMES,
+  type DecisionEvent,
+  type DecisionOutcome,
+  type EntryFields,
+  MAX_REASON_LENGTH,
+  type TokenAction,
+} from "~~/services/hcsAudit/types";
 
 export type ActionOutcome = { tx: string; result: string };
 
@@ -104,30 +113,131 @@ export const TOKEN_ACTIONS: readonly TokenAction[] = ["grant_kyc", "transfer", "
  * drift on what they validate or in what order they touch the network: the action
  * happens, and its entry is queued from the same outcome.
  */
-export type ActionRequest = { action: TokenAction; amount: number | null; account?: unknown };
+export type ActionRequest = {
+  kind: "action";
+  action: TokenAction;
+  amount: number | null;
+  account?: unknown;
+  context: EntryContext;
+};
 
-export function parseActionRequest(
-  body: { action?: string; amount?: number; account?: unknown } | null,
-): ActionRequest {
+/** A decision taken off chain. Nothing is performed; the entry *is* the record. */
+export type DecisionRequest = {
+  kind: "decision";
+  event: DecisionEvent;
+  outcome: DecisionOutcome;
+  account?: unknown;
+  context: EntryContext;
+};
+
+export type RecordRequest = ActionRequest | DecisionRequest;
+
+/** The fields that say why an entry exists and who stands behind it. */
+export type EntryContext = { reason: string | null; authority: string | null; evidence: string | null };
+
+export type RecordBody = {
+  action?: string;
+  event?: string;
+  outcome?: string;
+  amount?: number;
+  account?: unknown;
+  reason?: unknown;
+  authority?: unknown;
+  evidence?: unknown;
+};
+
+function parseAccountId(raw: unknown, field: string): string {
+  const id = String(raw).trim();
+  if (!/^0\.0\.\d+$/.test(id)) throw new Error(`${field} must look like 0.0.1234.`);
+  return id;
+}
+
+/**
+ * Reads the three context fields off a request.
+ *
+ * `evidence` is a hash and only ever a hash: the browser digests the document and
+ * sends the digest, so the document itself never reaches this server, let alone the
+ * topic. Anything that is not a SHA-256 hex digest is refused rather than published.
+ */
+function parseContext(body: RecordBody | null): EntryContext {
+  const rawReason = body?.reason;
+  const reason =
+    rawReason === undefined || rawReason === null || String(rawReason).trim() === "" ? null : String(rawReason).trim();
+  if (reason !== null && reason.length > MAX_REASON_LENGTH) {
+    throw new Error(`Reason must be at most ${MAX_REASON_LENGTH} characters.`);
+  }
+
+  const rawAuthority = body?.authority;
+  const authority =
+    rawAuthority === undefined || rawAuthority === null || String(rawAuthority).trim() === ""
+      ? null
+      : parseAccountId(rawAuthority, "Authority");
+
+  const rawEvidence = body?.evidence;
+  const evidence =
+    rawEvidence === undefined || rawEvidence === null || String(rawEvidence).trim() === ""
+      ? null
+      : String(rawEvidence).trim().toLowerCase();
+  if (evidence !== null && !/^[0-9a-f]{64}$/.test(evidence)) {
+    throw new Error("Evidence must be a SHA-256 hash as 64 hex characters.");
+  }
+
+  return { reason, authority, evidence };
+}
+
+export function parseRecordRequest(body: RecordBody | null): RecordRequest {
+  const context = parseContext(body);
+
+  if (body?.event !== undefined) {
+    const event = body.event as DecisionEvent;
+    if (!DECISION_EVENTS.includes(event)) throw new Error("Unknown decision.");
+    const outcome = body.outcome as DecisionOutcome;
+    if (!DECISION_OUTCOMES.includes(outcome)) throw new Error("A decision must record PASSED or REFUSED.");
+    // Enforced here as well as in the verifier, so the desk never publishes an entry
+    // its own regulator feed would call broken.
+    if (!context.evidence) throw new Error("A decision needs the document behind it.");
+    if (!context.authority) throw new Error("A decision needs the authority that approved it.");
+    return { kind: "decision", event, outcome, account: body?.account, context };
+  }
+
   const action = body?.action as TokenAction | undefined;
   if (!action || !TOKEN_ACTIONS.includes(action)) throw new Error("Unknown action.");
-  if (action !== "transfer") return { action, amount: null, account: body?.account };
+  if (action !== "transfer") return { kind: "action", action, amount: null, account: body?.account, context };
   const amount = Number(body?.amount);
   if (!Number.isInteger(amount) || amount <= 0) {
     throw new Error("Transfer amount must be a positive whole number.");
   }
-  return { action, amount, account: body?.account };
+  return { kind: "action", action, amount, account: body?.account, context };
 }
 
-/** Performs the action on chain and returns the entry that records it, unchained. */
-export async function performAction(
+/**
+ * Produces the entry that records a request, performing it on chain first when
+ * there is anything to perform.
+ *
+ * A decision does nothing on chain by definition, so it returns immediately: the
+ * entry is the only artefact it ever has. Both kinds come back as the same
+ * `EntryFields` and go through the same publish queue.
+ */
+export async function performRecord(
   client: Client,
   desk: Desk & { tokenId: string; holderAccountId: string },
   issuerAccountId: string,
-  request: ActionRequest,
+  request: RecordRequest,
 ): Promise<EntryFields> {
   const account = resolveTarget(request.account, desk.holderAccountId, issuerAccountId);
   const tokenId = desk.tokenId;
+
+  if (request.kind === "decision") {
+    return {
+      event: request.event,
+      token: tokenId,
+      account,
+      amount: null,
+      tx: null,
+      result: request.outcome,
+      ...request.context,
+    };
+  }
 
   let outcome: ActionOutcome;
   if (request.action === "transfer") {
@@ -147,5 +257,6 @@ export async function performAction(
     amount: request.amount,
     tx: outcome.tx,
     result: outcome.result,
+    ...request.context,
   };
 }

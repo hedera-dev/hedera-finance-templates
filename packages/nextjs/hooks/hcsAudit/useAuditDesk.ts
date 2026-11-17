@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
   AuditEntry,
+  BusyRecord,
   DeskState,
   Publisher,
+  RecordPayload,
   SetupEvent,
   SetupStepId,
   SigningMode,
-  TokenAction,
 } from "~~/services/hcsAudit/types";
 
 export type StepState = { status: "pending" | "active" | "done" | "failed"; id?: string; error?: string };
@@ -46,7 +47,7 @@ export function useAuditDesk() {
   const [justCompleted, setJustCompleted] = useState(false);
 
   const [signingMode, setSigningMode] = useState<SigningMode>("issuer");
-  const [busyAction, setBusyAction] = useState<TokenAction | null>(null);
+  const [busyRecord, setBusyRecord] = useState<BusyRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastEntry, setLastEntry] = useState<AuditEntry | null>(null);
 
@@ -130,38 +131,35 @@ export function useAuditDesk() {
     }
   }, [refreshDesk]);
 
-  const performIssuerAction = useCallback(async (action: TokenAction, amount?: number, account?: string) => {
-    setBusyAction(action);
+  /** Which control to spin: the action's own id, or the decision's event. */
+  const busyIdFor = (payload: RecordPayload): BusyRecord =>
+    payload.kind === "action" ? payload.action : payload.event;
+
+  const performIssuerRecord = useCallback(async (payload: RecordPayload) => {
+    setBusyRecord(busyIdFor(payload));
     setActionError(null);
     try {
-      const data = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action", { action, amount, account });
+      const data = await postJson<{ entry: AuditEntry }>("/api/hedera/audit/action", payload);
       setLastEntry(data.entry);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusyAction(null);
+      setBusyRecord(null);
     }
   }, []);
 
-  const performHashPackAction = useCallback(
+  const performHashPackRecord = useCallback(
     async (
-      action: TokenAction,
+      payload: RecordPayload,
       walletAccountId: string,
       signAndSubmit: (bytes: string) => Promise<{ transactionId: string }>,
-      amount?: number,
-      account?: string,
     ) => {
-      setBusyAction(action);
+      setBusyRecord(busyIdFor(payload));
       setActionError(null);
       try {
         const prepared = await postJson<{ entry: AuditEntry; transactionBytes: string }>(
           "/api/hedera/audit/action/prepare",
-          {
-            action,
-            amount,
-            account,
-            walletAccountId,
-          },
+          { ...payload, walletAccountId },
         );
         try {
           const { transactionId } = await signAndSubmit(prepared.transactionBytes);
@@ -170,8 +168,9 @@ export function useAuditDesk() {
           });
           setLastEntry(confirmed.entry);
         } catch (signError) {
-          // The token action already happened on chain, so its entry still has to be
-          // published; declining the signature hands it back to the Issuer.
+          // A token action already happened on chain, and a decision is already a fact
+          // the desk acted on, so the entry still has to be published either way;
+          // declining the signature hands it back to the Issuer.
           await postJson("/api/hedera/audit/action/confirm", { cancelled: true }).catch(() => undefined);
           const reason = signError instanceof Error ? signError.message : String(signError);
           throw new Error(`${reason} — the entry was published by the Issuer instead.`);
@@ -179,7 +178,7 @@ export function useAuditDesk() {
       } catch (e) {
         setActionError(e instanceof Error ? e.message : String(e));
       } finally {
-        setBusyAction(null);
+        setBusyRecord(null);
       }
     },
     [],
@@ -231,11 +230,11 @@ export function useAuditDesk() {
     runSetup,
     signingMode,
     setSigningMode,
-    busyAction,
+    busyRecord,
     actionError,
     lastEntry,
-    performIssuerAction,
-    performHashPackAction,
+    performIssuerRecord,
+    performHashPackRecord,
     authorizing,
     authorizeError,
     authorize,

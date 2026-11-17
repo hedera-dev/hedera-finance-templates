@@ -1,6 +1,6 @@
 {
   "name": "hcs-audit-trail",
-  "description": "Publish a tamper-evident audit trail of security-token actions to a Hedera Consensus Service topic, with a live, self-verifying regulator feed. No contracts.",
+  "description": "Publish an audit trail of security-token actions to a Hedera Consensus Service topic that carries what the ledger cannot: the reason and authority behind each action, document hashes, and decisions that never reach the network. With a live, self-verifying regulator feed. No contracts.",
   "create-scaffold-hbar": {
     "capabilities": {
       "frontend": [

@@ -2,7 +2,7 @@
 
 import { useTopicMessages } from "~~/hooks/hcsAudit/useTopicMessages";
 import { decodeEntryBase64 } from "~~/services/hcsAudit/entry";
-import { formatConsensus, shortTx } from "~~/services/hcsAudit/format";
+import { formatConsensus, shortHash, shortTx } from "~~/services/hcsAudit/format";
 import { hashscanTransactionUrl } from "~~/services/hcsAudit/mirror";
 
 export const TrailTable = ({ topicId }: { topicId: string | null }) => {
@@ -28,6 +28,9 @@ export const TrailTable = ({ topicId }: { topicId: string | null }) => {
                 <th>Event</th>
                 <th>Account</th>
                 <th>Result</th>
+                <th>Reason</th>
+                <th>Authority</th>
+                <th>Document</th>
                 <th>Transaction</th>
                 <th>Published by</th>
               </tr>
@@ -42,8 +45,15 @@ export const TrailTable = ({ topicId }: { topicId: string | null }) => {
                     <td>{decoded?.entry.event ?? "(unreadable)"}</td>
                     <td className="font-mono text-xs">{decoded?.entry.account ?? "—"}</td>
                     <td>{decoded?.entry.result ?? "—"}</td>
+                    <td className="max-w-xs truncate text-xs" title={decoded?.entry.reason ?? undefined}>
+                      {decoded?.entry.reason ?? "—"}
+                    </td>
+                    <td className="font-mono text-xs">{decoded?.entry.authority ?? "—"}</td>
+                    <td className="font-mono text-xs" title={decoded?.entry.evidence ?? undefined}>
+                      {decoded?.entry.evidence ? shortHash(decoded.entry.evidence) : "—"}
+                    </td>
                     <td>
-                      {decoded ? (
+                      {decoded?.entry.tx ? (
                         <a
                           href={hashscanTransactionUrl(decoded.entry.tx)}
                           target="_blank"
@@ -54,7 +64,12 @@ export const TrailTable = ({ topicId }: { topicId: string | null }) => {
                           {shortTx(decoded.entry.tx)}
                         </a>
                       ) : (
-                        "—"
+                        <span
+                          className="text-xs text-base-content/50"
+                          title="A decision taken off chain: there is no transaction to link to."
+                        >
+                          off chain
+                        </span>
                       )}
                     </td>
                     <td className="font-mono text-xs">{msg.payer_account_id}</td>

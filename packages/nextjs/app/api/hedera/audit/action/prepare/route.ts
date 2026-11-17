@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseActionRequest, performAction } from "~~/app/api/hedera/audit/_lib/actions";
+import { type RecordBody, parseRecordRequest, performRecord } from "~~/app/api/hedera/audit/_lib/actions";
 import { getOperator, getOperatorClient, hasOperatorEnv } from "~~/app/api/hedera/audit/_lib/operator";
 import { flushEntries, prepareEntryForWallet, queueEntry } from "~~/app/api/hedera/audit/_lib/publish";
 import { getDesk, requireSetUp } from "~~/app/api/hedera/audit/_lib/state";
@@ -8,9 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * HashPack mode, step 1: the Issuer performs the real token action, queues its
- * audit entry, and hands back an unsigned HCS submission for the wallet to sign
- * and pay for.
+ * HashPack mode, step 1: the Issuer performs the real token action (or records a
+ * decision, which performs nothing), queues the audit entry, and hands back an
+ * unsigned HCS submission for the wallet to sign and pay for.
  *
  * The queue is drained first, because the `prev` frozen into the bytes the wallet
  * signs has to be the one it will really chain at. If something is still waiting —
@@ -22,17 +22,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No operator configured." }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => null)) as {
-    action?: string;
-    amount?: number;
-    account?: string;
-    walletAccountId?: string;
-  } | null;
+  const body = (await req.json().catch(() => null)) as (RecordBody & { walletAccountId?: string }) | null;
   const walletAccountId = body?.walletAccountId;
   const desk = getDesk();
 
   try {
-    const request = parseActionRequest(body);
+    const request = parseRecordRequest(body);
     if (!walletAccountId) throw new Error("Connect HashPack first.");
     requireSetUp(desk);
 
@@ -43,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     const { accountId: operatorId } = getOperator();
-    const fields = await performAction(client, desk, operatorId.toString(), request);
+    const fields = await performRecord(client, desk, operatorId.toString(), request);
     // Queued before it is offered to the wallet: if the wallet never signs it, the
     // Issuer publishes this same entry instead of it being lost.
     const queued = queueEntry(desk, fields);

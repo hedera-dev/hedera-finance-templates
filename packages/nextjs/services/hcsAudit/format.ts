@@ -5,3 +5,6 @@ export const formatConsensus = (ts: string) => new Date(Number(ts.split(".")[0])
 
 /** "0.0.8065084@1791960322.985329131" -> "0.0.8065084@…329131"; show the full id in a title. */
 export const shortTx = (tx: string) => (tx.length > 24 ? `${tx.slice(0, tx.indexOf("@") + 1)}…${tx.slice(-6)}` : tx);
+
+/** "a1b2…9f8e": enough of a hash to compare by eye; show the whole thing in a title. */
+export const shortHash = (hash: string) => `${hash.slice(0, 8)}…${hash.slice(-8)}`;
