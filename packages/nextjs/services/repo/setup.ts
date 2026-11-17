@@ -1,7 +1,7 @@
 // Server-only: sets up a fresh desk, step by step, recording progress as it goes.
 import { atsFactoryAbi, billAbi, cashAbi, feedAbi, resolverAbi, stablecoinAbi, studioFactoryAbi } from "./abi";
 import { billPriceFeedArtifact, billRepoArtifact } from "./artifacts";
-import { getOperator } from "./clients";
+import { getOperator, getPublicClient } from "./clients";
 import {
   ATS_FACTORY_CONTRACT_ID,
   ATS_RESOLVER_CONTRACT_ID,
@@ -32,6 +32,7 @@ import {
   RESERVE_INITIAL_USD,
   ROLES,
   SECONDS_PER_DAY,
+  SETUP_MIN_BALANCE_HBAR,
   STABLECOIN_CONFIG_ID,
   STABLECOIN_CREATE_VALUE_WEI,
   STABLECOIN_FACTORY_CONTRACT_ID,
@@ -45,7 +46,15 @@ import { USD8, makeIsin, toInt64 } from "./math";
 import { contractCallResult, contractEvmAddress, entityId } from "./mirror";
 import { read, sendTransaction, simulate, withTxLock } from "./rpc";
 import { type Executed, deployContract, execute } from "./tx";
-import { type Address, type Hex, decodeFunctionResult, getAddress, parseEventLogs, stringToHex } from "viem";
+import {
+  type Address,
+  type Hex,
+  decodeFunctionResult,
+  formatEther,
+  getAddress,
+  parseEventLogs,
+  stringToHex,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { StepId } from "~~/types/repo";
 
@@ -274,6 +283,13 @@ export async function runSetup(): Promise<void> {
   beginSetup();
 
   try {
+    const balance = Number(formatEther(await getPublicClient().getBalance({ address: operator.account.address })));
+    if (balance < SETUP_MIN_BALANCE_HBAR) {
+      throw new SetupFailure(
+        `The operator holds ${balance.toFixed(2)} HBAR; setup needs about ${SETUP_MIN_BALANCE_HBAR}. Top it up from the Hedera Portal faucet and run it again.`,
+      );
+    }
+
     const borrowerKey = generatePrivateKey();
     const borrower = privateKeyToAccount(borrowerKey);
 
@@ -478,7 +494,7 @@ export async function runSetup(): Promise<void> {
         const lenderUnits = LENDER_CASH_USD * CASH_UNITS_PER_USD;
         const minted = await execute({
           account: operator.account,
-          action: `Mint $${LENDER_CASH_USD} of stablecoin to the lender`,
+          action: `Mint $${LENDER_CASH_USD.toLocaleString("en-US")} of stablecoin to the lender`,
           to: stablecoin.proxy.address,
           abi: stablecoinAbi,
           functionName: "mint",
@@ -489,7 +505,7 @@ export async function runSetup(): Promise<void> {
         // Interest has to come from somewhere: the borrower only borrows the principal.
         const buffer = await execute({
           account: operator.account,
-          action: `Send the borrower $${BORROWER_CASH_USD} of stablecoin to cover interest`,
+          action: `Send the borrower $${BORROWER_CASH_USD.toLocaleString("en-US")} of stablecoin to cover interest`,
           to: stablecoin.token.address,
           abi: cashAbi,
           functionName: "transfer",
@@ -509,7 +525,7 @@ export async function runSetup(): Promise<void> {
         });
         if (!anchored.ok) refuse("Starting the bill's clock", anchored);
       },
-      () => `${BILLS_ISSUED} bills to the borrower; $${LENDER_CASH_USD} minted to the lender`,
+      () => `${BILLS_ISSUED} bills to the borrower; $${LENDER_CASH_USD.toLocaleString("en-US")} minted to the lender`,
     );
 
     const desk: Desk = {

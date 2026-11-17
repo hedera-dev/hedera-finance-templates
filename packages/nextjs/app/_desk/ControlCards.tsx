@@ -15,7 +15,12 @@ export function Outcome({ id, result }: { id: string; result: ActionResult | nul
     <div id={id} className={`alert ${result.ok ? "alert-success" : "alert-error"} text-sm break-words`}>
       <span className="min-w-0 [overflow-wrap:anywhere]">
         <strong className="font-mono">{result.result}</strong>
-        {result.message ? ` — ${result.message}` : ""}
+        {/* A decoded error's message already opens with its name: "PriceStale: …". */}
+        {result.message.startsWith(`${result.result}:`)
+          ? result.message.slice(result.result.length)
+          : result.message
+            ? ` — ${result.message}`
+            : ""}
         {result.txHash ? (
           <>
             {" "}

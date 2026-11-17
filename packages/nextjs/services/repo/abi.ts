@@ -155,5 +155,8 @@ export const repoAbi = parseAbi([
   "event LoanLiquidated(uint256 indexed loanId, bool byTerm)",
 ]);
 
+// Raised by Hedera's system contracts (HTS) when the network refuses the call; the argument is a Hedera response code.
+const systemErrorsAbi = parseAbi(["error ResponseCodeInvalid(int64 code)"]);
+
 /** Every error the desk can meet, for decoding a revert to its name. */
-export const allErrorsAbi = [...atsErrorsAbi, ...repoErrorsAbi] as const;
+export const allErrorsAbi = [...atsErrorsAbi, ...repoErrorsAbi, ...systemErrorsAbi] as const;

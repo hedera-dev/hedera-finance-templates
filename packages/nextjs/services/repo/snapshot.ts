@@ -92,7 +92,7 @@ export function statusOf(input: { loanId: bigint | null; position: RepoPosition 
   if (!p.priceUsable) {
     return {
       status: "UNKNOWN",
-      note: "The price is zero, negative or stale, so no figure here can be stood behind. New credit is blocked and price liquidation is refused; term liquidation is not.",
+      note: "The price is zero, negative or stale: no new credit and no price liquidation, though term liquidation still works.",
     };
   }
   // Exact cross-multiplication, as the contract does it: the rounded-up LTV shown on the page is not the test.
@@ -100,7 +100,7 @@ export function statusOf(input: { loanId: bigint | null; position: RepoPosition 
   if (p.value8 > 0n && debt8 * BPS >= BigInt(LIQUIDATION_THRESHOLD_BPS) * p.value8) {
     return {
       status: "LIQUIDATABLE",
-      note: "The LTV is at or above the threshold. Repaying part of the principal cures it; otherwise the lender may take the collateral.",
+      note: "The LTV is at or above the threshold: repay part of the principal, or the lender may take the collateral.",
     };
   }
   if (debt8 * BPS > (BPS - BigInt(HAIRCUT_BPS)) * p.value8) {

@@ -439,7 +439,8 @@ function explain(result: ActionResult, meaning?: string): string {
     ? result.message.slice(result.result.length + 2)
     : result.message;
   const sentence = message === result.result || message === "" ? (meaning ?? message) : message;
-  return sentence.replace(/0x[0-9a-fA-F]{40}/g, address => shortAddress(address));
+  const short = sentence.replace(/0x[0-9a-fA-F]{40}/g, address => shortAddress(address));
+  return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
 /** An attack's result: refused in red, because the attack failed, which is the pledge holding. */

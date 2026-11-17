@@ -76,8 +76,8 @@ export function SetupCard({
     >
       <div className="flex flex-col gap-3">
         <p className="m-0 text-sm">
-          The operator account pays, roughly 15–25 testnet HBAR in all. Running it again starts a fresh desk and leaves
-          the old one behind on the network.
+          The operator account pays, about 50 testnet HBAR in all, and needs 100 on hand to start. Running it again
+          starts a fresh desk and leaves the old one behind on the network.
         </p>
         <div className="flex items-center gap-3">
           <button

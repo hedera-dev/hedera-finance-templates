@@ -158,7 +158,14 @@ export function Tour({ snapshot, busy, run, act, setup }: DeskProps) {
       ) : stage === "stress" ? (
         <StressScreen ctx={ctx} />
       ) : (
-        <ResolveScreen ctx={ctx} onPledgeAgain={() => setDismissedLoan(loanId)} setup={setup} />
+        <ResolveScreen
+          ctx={ctx}
+          onPledgeAgain={() => {
+            setDismissedLoan(loanId);
+            setFlash(null);
+          }}
+          setup={setup}
+        />
       )}
     </div>
   );
@@ -653,7 +660,7 @@ function headline(desk: DeskView): string {
     return p.termElapsed
       ? "Term over."
       : `Each bill is now worth ${desk.bill.price}: the loan is at ${p.ltv}, over the 99% line.`;
-  return "The price cannot be stood behind.";
+  return "No trusted price.";
 }
 
 function StressScreen({ ctx }: { ctx: Ctx }) {
@@ -887,10 +894,7 @@ function ResolveScreen({
 }) {
   const { desk, busy, snapshot } = ctx;
   const liquidated = desk.position.status === "LIQUIDATED";
-  const timeline = snapshot.activity
-    .filter(entry => entry.result === "SUCCESS")
-    .slice(0, 10)
-    .reverse();
+  const timeline = snapshot.activity.filter(entry => entry.result === "SUCCESS").slice(0, 10);
 
   return (
     <Columns
@@ -925,8 +929,8 @@ bill.releaseHoldByPartition(hold, amount)   // the repo contract, as escrow`
                   }
                 />
               </StepCard>
-              <Panel title="What happened" caption="This desk's transactions, oldest first.">
-                <ol className="m-0 pl-5 list-decimal flex flex-col gap-1.5 text-sm max-h-48 overflow-y-auto">
+              <Panel title="What happened" caption="This desk's transactions, latest first.">
+                <ul className="m-0 pl-5 list-disc flex flex-col gap-1.5 text-sm max-h-28 overflow-y-auto">
                   {timeline.map(entry => (
                     <li key={entry.id}>
                       {entry.action}
@@ -940,7 +944,7 @@ bill.releaseHoldByPartition(hold, amount)   // the repo contract, as escrow`
                       ) : null}
                     </li>
                   ))}
-                </ol>
+                </ul>
               </Panel>
             </div>
             <BillsCard

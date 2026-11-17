@@ -82,6 +82,12 @@ const ROLE_NAMES: Record<string, string> = {
 };
 const roleName = (role: string) => ROLE_NAMES[role] ?? role;
 
+/** The Hedera response codes a desk transaction is likely to meet; the rest are shown as their number. */
+const RESPONSE_CODES: Record<number, string> = {
+  9: "INSUFFICIENT_TX_FEE: the HBAR sent does not cover the fee",
+  10: "INSUFFICIENT_PAYER_BALANCE: the payer cannot cover the fee",
+};
+
 function describe(name: string, args: readonly unknown[]): string {
   const [first, second] = args;
   switch (name) {
@@ -125,6 +131,8 @@ function describe(name: string, args: readonly unknown[]): string {
       return `AccountHasNoRole: ${String(first)} does not hold the role required.`;
     case "AccountIsBlocked":
       return `AccountIsBlocked: ${String(first)} is not on the bill's control list.`;
+    case "ResponseCodeInvalid":
+      return `ResponseCodeInvalid: Hedera refused the call with ${RESPONSE_CODES[Number(first)] ?? `response code ${String(first)}`}.`;
     default:
       return args.length > 0 ? `${name}(${args.map(arg => String(arg)).join(", ")})` : name;
   }

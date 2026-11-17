@@ -25,7 +25,7 @@ import {
 } from "./constants";
 import { type Desk, getDesk, isRunning, logActivity } from "./desk";
 import { decodeFailure } from "./errors";
-import { BPS, CASH_SCALE, formatBps, formatUsd8, parseWhole, plainCash } from "./math";
+import { BPS, CASH_SCALE, formatBps, formatCash, formatUsd8, parseWhole, plainCash } from "./math";
 import { read, simulate, withReadRetry } from "./rpc";
 import { type RepoPosition, invalidateSnapshot } from "./snapshot";
 import { type Executed, execute } from "./tx";
@@ -260,7 +260,7 @@ async function openLoan(request: { amount: string }): Promise<ActionResult> {
   const dollars = parseWhole(request.amount, MAX_BORROW_USD);
   if (dollars === null) throw new ActionRefused(`Enter a whole number of dollars from 1 to ${MAX_BORROW_USD}.`, 400);
   const units = dollars * CASH_UNITS_PER_USD;
-  const action = `Open a loan of $${dollars} against the pledge`;
+  const action = `Open a loan of $${dollars.toLocaleString("en-US")} against the pledge`;
 
   const hold = await readHold(desk, desk.activeBorrower);
   if (!hold || desk.holdId === null) {
@@ -288,7 +288,7 @@ async function openLoan(request: { amount: string }): Promise<ActionResult> {
 
   const approved = await execute({
     account: operator.account,
-    action: `Approve the repo contract to pull $${dollars} of the lender's stablecoin`,
+    action: `Approve the repo contract to pull $${dollars.toLocaleString("en-US")} of the lender's stablecoin`,
     to: desk.token.address,
     abi: cashAbi,
     functionName: "approve",
@@ -312,7 +312,7 @@ async function openLoan(request: { amount: string }): Promise<ActionResult> {
   );
   if (opened) desk.loanId = opened.args.loanId as bigint;
   else desk.loanId = (await read<bigint>(desk.repo.address, repoAbi, "nextLoanId")) - 1n;
-  return outcome(done, `Lent $${dollars} in one transaction, against a hold the contract read for itself.`);
+  return outcome(done, `Lent ${formatCash(units)} in one transaction, against a hold the contract read for itself.`);
 }
 
 async function repay(): Promise<ActionResult> {
@@ -365,7 +365,7 @@ async function topUp(request: { amount: string }): Promise<ActionResult> {
   const dollars = parseWhole(request.amount, MAX_TOP_UP_USD);
   if (dollars === null) throw new ActionRefused(`Enter a whole number of dollars from 1 to ${MAX_TOP_UP_USD}.`, 400);
   const units = dollars * CASH_UNITS_PER_USD;
-  const action = `Repay $${dollars} of the principal to cure`;
+  const action = `Repay $${dollars.toLocaleString("en-US")} of the principal to cure`;
   if (desk.loanId === null) {
     logActivity({ action, result: "UnknownLoan" });
     return refusal("UnknownLoan", "There is no loan.");
@@ -386,7 +386,7 @@ async function topUp(request: { amount: string }): Promise<ActionResult> {
 
   const approved = await execute({
     account: borrower,
-    action: `Approve the repo contract to pull $${dollars}`,
+    action: `Approve the repo contract to pull $${dollars.toLocaleString("en-US")}`,
     to: desk.token.address,
     abi: cashAbi,
     functionName: "approve",
@@ -404,7 +404,7 @@ async function topUp(request: { amount: string }): Promise<ActionResult> {
     args: [desk.loanId, units],
   });
   invalidateSnapshot();
-  return outcome(done, `Repaid $${dollars} of the principal. The debt and the LTV are lower.`);
+  return outcome(done, `Repaid $${dollars.toLocaleString("en-US")} of the principal. The debt and the LTV are lower.`);
 }
 
 async function liquidate(): Promise<ActionResult> {

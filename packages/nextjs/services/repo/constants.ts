@@ -43,8 +43,13 @@ export const GAS_HTS_APPROVE = 800_000n;
 export const GAS_HTS_TRANSFER = 120_000n;
 /** Headroom over `eth_estimateGas` for ordinary calls. */
 export const GAS_ESTIMATE_MARGIN_PERCENT = 125n;
-/** HBAR sent with `deployStableCoin`, forwarded to HTS token creation. The Studio refunds what is not used. */
-export const STABLECOIN_CREATE_VALUE_WEI = 20n * 10n ** 18n;
+/**
+ * HBAR sent with `deployStableCoin`, forwarded to HTS token creation. The fee is priced in dollars, so it costs more
+ * HBAR as HBAR falls: about 21 HBAR at $0.057. The Studio refunds what is not used.
+ */
+export const STABLECOIN_CREATE_VALUE_WEI = 40n * 10n ** 18n;
+/** What the operator must hold before setup starts, so a short balance is refused up front, not halfway through. */
+export const SETUP_MIN_BALANCE_HBAR = 100;
 /** HBAR sent to the demo borrower so it can pay gas for its own transactions. */
 export const BORROWER_GAS_FUNDING_WEI = 6n * 10n ** 18n;
 

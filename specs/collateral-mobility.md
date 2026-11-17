@@ -357,7 +357,7 @@ The steps:
    line falls back under it before a liquidation lands.
 6. **Resolve** — whether the loan was repaid or liquidated, in a sentence, with
    `#loan-status`, the bills picture showing where the bills ended up, and this
-   desk's successful transactions, oldest first, linked to HashScan. After a
+   desk's successful transactions, latest first, linked to HashScan. After a
    repayment `#pledge-again` returns to the Pledge step. Either way
    `#setup-again` sets up a fresh desk; after a liquidation it is the only way
    on, since the borrower has no bills left, and a note says the template simplifies close-out: the lender keeps every bill,
