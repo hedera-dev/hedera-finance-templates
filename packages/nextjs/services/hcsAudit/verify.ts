@@ -22,6 +22,17 @@ export type FeedRow = {
    * a tick there would claim a verification that never happened.
    */
   checks: { sequence: boolean; chain: boolean; transaction: boolean | null };
+  /**
+   * How much the network backs the entry's `authority`. Not a check: an officer who
+   * did not publish the entry is the ordinary case, not a failure, so this never
+   * makes a trail `BROKEN`.
+   *
+   * `proved` — the authority is the account that signed and paid for this
+   * submission, which the mirror node attests. It put its own key behind the entry.
+   * `claimed` — an account the publisher named, and nothing more.
+   * `null` — no authority named.
+   */
+  authorityProof: "proved" | "claimed" | null;
 };
 
 export type FeedResult = {
@@ -76,6 +87,7 @@ export async function verifyFeed(messages: MirrorTopicMessage[], baseUrl = MIRRO
       payerAccountId: msg.payer_account_id,
       entry,
       checks: { sequence: sequenceOk, chain: chainOk, transaction: txOk },
+      authorityProof: authorityProofOf(entry, msg.payer_account_id),
     });
 
     if (!brokenAt && !(sequenceOk && entry !== null && chainOk && txOk !== false)) {
@@ -93,6 +105,26 @@ export async function verifyFeed(messages: MirrorTopicMessage[], baseUrl = MIRRO
   }
 
   return { status: brokenAt ? "BROKEN" : "VERIFIED", brokenAt, rows };
+}
+
+/**
+ * How far the network stands behind the account an entry names as its authority.
+ *
+ * `authority` is normally the publisher's word and no more: the submit key proves
+ * who *wrote* the entry, not that the account it names agreed to anything. There is
+ * one case the mirror node can settle, though. A compliance officer publishing
+ * through their own wallet signs and pays for that submission, and the topic message
+ * records which account did — so when the authority is that same account, the entry
+ * is one it put its own key behind rather than one written about it.
+ *
+ * That is endorsement of the entry, not authorisation of the action it describes:
+ * the officer signed the record, not the freeze. Proving the latter needs the
+ * authorising account's signature on the action itself, which is a threshold key on
+ * the token rather than anything a topic can do.
+ */
+function authorityProofOf(entry: AuditEntry | null, payerAccountId: string): FeedRow["authorityProof"] {
+  if (!entry?.authority) return null;
+  return entry.authority === payerAccountId ? "proved" : "claimed";
 }
 
 /**

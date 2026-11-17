@@ -27,7 +27,8 @@ const RegulatorContent = () => {
           Reads the audit topic straight from the public Hedera mirror node and re-derives every check itself: this page
           needs nothing from the issuer&apos;s server, no key, and no account. Entries recorded off chain — a KYC
           review, a sanctions screening, a board approval — have no transaction to confirm, so their transaction check
-          reads as not applicable; what they can be checked against is the document behind them.
+          reads as not applicable; what they can be checked against is the document behind them. The authority column
+          says whether the account it names signed the entry itself or was only named by the publisher.
         </p>
       </div>
 

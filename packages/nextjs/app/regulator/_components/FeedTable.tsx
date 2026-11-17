@@ -27,6 +27,37 @@ function CheckMark({ ok, label, what }: { ok: boolean | null; label: string; wha
   );
 }
 
+/**
+ * How far the network backs the named authority — the one field here whose status is
+ * not pass or fail.
+ *
+ * An entry published by the officer it names is signed by that officer: the mirror
+ * node says which account paid for the submission, so the claim is checkable. An
+ * entry written *about* an officer by someone else is a name, which the trail puts
+ * beyond editing but cannot confirm. Saying which is which is the honest version of
+ * a field that would otherwise look like evidence.
+ */
+function AuthorityProof({ proof, payer }: { proof: "proved" | "claimed"; payer: string }) {
+  if (proof === "proved") {
+    return (
+      <span
+        className="text-xs text-success"
+        title={`This entry was signed and paid for by ${payer}, so the authority it names put its own key behind the record. It does not prove that account authorised the action itself.`}
+      >
+        signed by this account
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-xs text-base-content/50"
+      title={`Published by ${payer}, not by the account named here: the publisher's claim, which nothing on the network confirms.`}
+    >
+      publisher&apos;s claim
+    </span>
+  );
+}
+
 export const FeedTable = ({ rows, matchedHash }: { rows: FeedRow[]; matchedHash?: string | null }) => {
   if (rows.length === 0) return null;
 
@@ -40,7 +71,7 @@ export const FeedTable = ({ rows, matchedHash }: { rows: FeedRow[]; matchedHash?
             <th>Event / result</th>
             <th>Account</th>
             <th>Reason</th>
-            <th>Authority</th>
+            <th title="the account the entry names, and whether the network backs it">Authority</th>
             <th>Document</th>
             <th>Transaction</th>
             <th>Published by</th>
@@ -66,7 +97,12 @@ export const FeedTable = ({ rows, matchedHash }: { rows: FeedRow[]; matchedHash?
               <td className="max-w-xs truncate" title={row.entry?.reason ?? undefined}>
                 {row.entry?.reason ?? "—"}
               </td>
-              <td className="font-mono text-xs">{row.entry?.authority ?? "—"}</td>
+              <td className="font-mono text-xs" data-authority-proof={row.authorityProof ?? undefined}>
+                <span className="flex flex-col">
+                  <span>{row.entry?.authority ?? "—"}</span>
+                  {row.authorityProof && <AuthorityProof proof={row.authorityProof} payer={row.payerAccountId} />}
+                </span>
+              </td>
               <td
                 className={`font-mono text-xs ${matchedHash && row.entry?.evidence === matchedHash ? "text-success font-bold" : ""}`}
                 title={row.entry?.evidence ?? undefined}

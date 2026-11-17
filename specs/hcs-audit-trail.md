@@ -155,13 +155,21 @@ pre-filled from the `topic` query parameter. Below it:
 - `#feed` — every entry, oldest first, as rows with the class `feed-entry`, each
   showing the sequence number, the readable consensus time, the event with its
   result beneath it (success and failure coloured differently), the target
-  account, the reason, the authority, the evidence hash (shortened, full hash on
-  hover), the referenced transaction (shortened, full id on hover) or `off chain`
-  for an entry that has none, the publishing account, and one mark per check —
-  sequence, chain, transaction — in a single column, each mark explained on
-  hover. A check that does not apply to an entry shows a dash, not a tick. A
-  message that is not an entry at all shows a dash for its transaction, never
-  `off chain`: it is unreadable, not a decision anyone recorded.
+  account, the reason, the authority with what backs it, the evidence hash
+  (shortened, full hash on hover), the referenced transaction (shortened, full
+  id on hover) or `off chain` for an entry that has none, the publishing
+  account, and one mark per check — sequence, chain, transaction — in a single
+  column, each mark explained on hover. A check that does not apply to an entry
+  shows a dash, not a tick. A message that is not an entry at all shows a dash
+  for its transaction, never `off chain`: it is unreadable, not a decision
+  anyone recorded.
+
+  Under the authority account, the feed says how far the network backs it:
+  `signed by this account` when the entry was paid for by the account it names,
+  and `publisher's claim` when it was not. Neither is a check, and neither can
+  make a trail `BROKEN` — an officer named by a desk that published on their
+  behalf is the ordinary case. An entry naming no authority says nothing.
+
 - `#feed-document` — a file input that hashes a document in the browser and
   compares it with every entry's evidence hash. `#document-verdict` names the
   matching entries, or says that no entry carries that document's hash. Nothing
@@ -194,7 +202,13 @@ a JSON object with exactly these fields:
   officer reached: `PASSED` or `REFUSED`
 - `reason` — why it happened (a case reference, an instruction), at most 200
   characters, or `null`
-- `authority` — the account the publisher says authorised it, or `null`
+- `authority` — the account the publisher says authorised it, or `null`. The
+  submit key proves who wrote the entry, not that this account agreed to it, so
+  the regulator feed distinguishes the one case the mirror node can settle: an
+  entry whose publisher *is* the account it names was signed by that account.
+  Even then it is endorsement of the record, not authorisation of the action —
+  that needs the account's signature on the action itself, which is the
+  threshold key in the Regulated Token template
 - `evidence` — the lowercase hex SHA-256 of a supporting document, or `null`.
   Only ever the hash: the document is digested in the browser and never sent
 - `prev` — the lowercase hex SHA-256 of the exact bytes of the previous entry's

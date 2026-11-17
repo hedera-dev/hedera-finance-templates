@@ -77,8 +77,14 @@ function decision(fields: Partial<AuditEntry> = {}): AuditEntry {
   });
 }
 
-/** Chains entries into topic messages the way a correct publisher would. */
-function topic(entries: AuditEntry[]): MirrorTopicMessage[] {
+/**
+ * Chains entries into topic messages the way a correct publisher would.
+ *
+ * `payers` names who paid for each submission, which is the only thing the mirror
+ * node can tell a regulator about who stood behind an entry. The Issuer (`0.0.1`)
+ * publishes unless a test says otherwise.
+ */
+function topic(entries: AuditEntry[], payers: string[] = []): MirrorTopicMessage[] {
   const messages: MirrorTopicMessage[] = [];
   let prev = ZERO;
   entries.forEach((e, i) => {
@@ -87,7 +93,7 @@ function topic(entries: AuditEntry[]): MirrorTopicMessage[] {
       consensus_timestamp: `170000000${i}.000000000`,
       topic_id: "0.0.7007",
       message: Buffer.from(bytes).toString("base64"),
-      payer_account_id: "0.0.1",
+      payer_account_id: payers[i] ?? "0.0.1",
       sequence_number: i + 1,
       running_hash: "",
     });
@@ -241,6 +247,35 @@ test("a decision recording a network status rather than an outcome is BROKEN", a
   const result = await verifyFeed(topic([decision({ result: "SUCCESS" })]));
   assert.equal(result.status, "BROKEN");
   assert.match(result.brokenAt?.reason ?? "", /must record PASSED or REFUSED/);
+});
+
+/**
+ * The one thing the mirror node can settle about an authority.
+ *
+ * An officer who publishes through their own wallet signs and pays for that
+ * submission, so an entry naming them is one they put their own key behind. An
+ * entry naming an officer who did not publish it is a claim by whoever did — a
+ * normal way to run a desk, and not a failure, which is why none of this can make
+ * a trail BROKEN.
+ */
+test("an authority that published its own entry is backed by the network", async () => {
+  mirrorReturns({});
+
+  const proved = await verifyFeed(topic([decision()], [OFFICER]));
+  assert.equal(proved.rows[0].authorityProof, "proved");
+  assert.equal(proved.status, "VERIFIED");
+
+  const claimed = await verifyFeed(topic([decision()]));
+  assert.equal(claimed.rows[0].authorityProof, "claimed", "the Issuer published it, naming the officer");
+  assert.equal(claimed.status, "VERIFIED", "being a claim is not a failure");
+});
+
+test("an entry naming no authority claims nothing", async () => {
+  mirrorReturns({ "0.0.1-7-7": { result: "SUCCESS", name: "TOKENFREEZE", entity_id: TOKEN } });
+
+  const result = await verifyFeed(topic([entry({ event: "freeze", tx: "0.0.1@7.7" })]));
+  assert.equal(result.rows[0].authorityProof, null);
+  assert.equal(result.status, "VERIFIED");
 });
 
 /**
