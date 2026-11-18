@@ -206,7 +206,7 @@ function IssueScreen({ desk }: { desk: BondDesk }) {
                 <strong>Approve</strong>: put Investor A on the bond&apos;s allowlist. Leave Investor B off.
               </li>
               <li>
-                <strong>Distribute</strong>: issue 100 bonds to Investor A.
+                <strong>Distribute</strong>: issue bonds to Investor A.
               </li>
               <li>
                 <strong>Break it</strong>: try three ways around the allowlist. Each should be refused.
@@ -269,11 +269,14 @@ function DistributeScreen({ ctx }: { ctx: Ctx }) {
   const { status, desk, results, go } = ctx;
   const a = byLabel(status.investors, "Investor A");
   const [amount, setAmount] = useState("100");
+  // The label, the call and the request all use the same number, and none of them is sent until it is a whole one.
+  const count = /^\d+$/.test(amount) && Number(amount) > 0 ? Number(amount) : null;
+  const bonds = count === null ? "bonds" : `${count.toLocaleString()} ${count === 1 ? "bond" : "bonds"}`;
   return (
     <Columns
       main={
         <>
-          <StepCard step={3} total={TOTAL} who="Issuer" title="Issue 100 bonds to Investor A">
+          <StepCard step={3} total={TOTAL} who="Issuer" title="Issue bonds to Investor A">
             <p className="m-0 text-base-content/80 max-w-2xl">
               Issuing mints new bonds straight to an investor. The bond checks the allowlist first, so this works for
               Investor A and would not for Investor B.
@@ -295,25 +298,26 @@ function DistributeScreen({ ctx }: { ctx: Ctx }) {
                 id="distribute"
                 type="button"
                 className="btn btn-primary"
-                disabled={!a || desk.busyKey !== null}
+                disabled={!a || count === null || desk.busyKey !== null}
                 onClick={() =>
                   a &&
+                  count !== null &&
                   void go("distribute", () =>
-                    desk.act("distribute", `/api/hedera/bond/investors/${a.address}/issue`, { amount: Number(amount) }),
+                    desk.act("distribute", `/api/hedera/bond/investors/${a.address}/issue`, { amount: count }),
                   )
                 }
               >
                 {desk.busyKey === "distribute" ? (
                   <span className="loading loading-spinner loading-xs" aria-hidden />
                 ) : null}
-                Issue {amount} to Investor A
+                Issue {bonds} to Investor A
               </button>
             </div>
             <Refusal id="distribute-error" result={results.distribute ?? null} />
           </StepCard>
           <UnderTheHood
             title="the call this step makes"
-            code={`bond.issue(investorA, ${amount}, "0x")   // signed by the issuer, who holds the issuer role
+            code={`bond.issue(investorA, ${count ?? "amount"}, "0x")   // signed by the issuer, who holds the issuer role
 // the bond checks the allowlist and the maximum supply before it mints`}
           />
         </>
@@ -424,7 +428,7 @@ function ManageScreen({ ctx }: { ctx: Ctx }) {
         <StepCard step={5} total={TOTAL} who="Issuer" title="Change who may hold it">
           <p className="m-0 text-base-content/80 max-w-2xl">
             The allowlist is the issuer&apos;s to change at any time, and the bond follows it from the next transaction
-            on. Approve Investor B and issue it 50; revoke it, and it keeps the 50 but cannot receive more.
+            on. Approve Investor B and issue it some bonds; revoke it, and it keeps them but cannot receive more.
           </p>
           {desk.actionError ? (
             <p id="action-error" className="m-0 text-sm text-error" role="alert">

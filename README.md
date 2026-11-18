@@ -13,4 +13,4 @@ yarn install
 yarn next:dev   # http://localhost:3000
 ```
 
-The page opens on a guided tour: **Issue** the bond, **Approve** Investor A, **Distribute** 100 bonds, **Break it** with three attacks the bond refuses on-chain (each with a HashScan link), and **Manage the list**. The **Sandbox** tab (`/?view=sandbox`) has every control on one page. Issuing costs about 12 testnet HBAR.
+The page opens on a guided tour: **Issue** the bond, **Approve** Investor A, **Distribute** bonds to it, **Break it** with three attacks the bond refuses on-chain (each with a HashScan link), and **Manage the list**. The **Sandbox** tab (`/?view=sandbox`) has every control on one page. Issuing costs about 12 testnet HBAR.

@@ -208,7 +208,8 @@ export function HoldersCard({ investors, caption }: { investors: InvestorView[];
             </div>
             <div className="flex justify-between gap-2 flex-wrap items-baseline">
               <span className="text-2xl font-bold">
-                {formatNumber(investor.balance)} <span className="text-sm font-normal">bonds</span>
+                {formatNumber(investor.balance)}{" "}
+                <span className="text-sm font-normal">{investor.balance === 1 ? "bond" : "bonds"}</span>
               </span>
               <span className="text-xs">
                 {investor.approved === null
