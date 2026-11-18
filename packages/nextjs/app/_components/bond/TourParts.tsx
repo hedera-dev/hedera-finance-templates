@@ -114,9 +114,20 @@ function explain(result: ActionResult, meaning?: string): string {
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
-/** An attack's result: refused in red, because the attack failed, which is the allowlist holding. */
+/**
+ * An attack's result: refused in red, because the attack failed, which is the allowlist holding. A request that could
+ * not run at all is neither: it says why, in neutral colours, and does not count as a refusal.
+ */
 export function AttackOutcome({ id, result, meaning }: { id: string; result: ActionResult | null; meaning: string }) {
   if (!result) return null;
+  if (result.result === "Error")
+    return (
+      <div id={id} role="alert" className="alert text-sm">
+        <span>
+          <strong>Not run.</strong> {result.message}
+        </span>
+      </div>
+    );
   if (result.ok)
     return (
       <div id={id} role="alert" className="alert alert-warning text-sm">

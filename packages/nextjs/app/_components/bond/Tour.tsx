@@ -363,7 +363,7 @@ const ATTACKS: {
 
 function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
   const { desk, results, go } = ctx;
-  const tried = ATTACKS.map(attack => results[attack.type]).filter(Boolean);
+  const tried = ATTACKS.map(attack => results[attack.type]).filter(result => result && result.result !== "Error");
   const refused = tried.filter(result => result && !result.ok).length;
   return (
     <div className="flex flex-col gap-4">
@@ -466,7 +466,9 @@ function ManageScreen({ ctx }: { ctx: Ctx }) {
             </div>
           </details>
           <details className="card bg-base-100 border border-base-300 shadow-sm">
-            <summary className="cursor-pointer p-5 font-semibold">History · {status.activity.length} actions</summary>
+            <summary className="cursor-pointer p-5 font-semibold">
+              History · {status.activity.length} {status.activity.length === 1 ? "action" : "actions"}
+            </summary>
             <div className="px-1 pb-1">
               <ActivityLog entries={status.activity} />
             </div>
