@@ -2,8 +2,6 @@
 
 // @refresh reset
 import { AddressInfoDropdown } from "./AddressInfoDropdown";
-import { RevealBurnerPKModal } from "./RevealBurnerPKModal";
-import { SetBurnerPKModal } from "./SetBurnerPKModal";
 import { WrongNetworkDropdown } from "./WrongNetworkDropdown";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Balance } from "@scaffold-hbar-ui/components";
@@ -63,8 +61,6 @@ export const RainbowKitCustomConnectButton = () => {
                     ensAvatar={account.ensAvatar}
                     blockExplorerAddressLink={blockExplorerAddressLink}
                   />
-                  <RevealBurnerPKModal />
-                  <SetBurnerPKModal />
                 </>
               );
             })()}
