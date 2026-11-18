@@ -80,8 +80,11 @@ function toMirrorTransactionPath(sdkTransactionId: string): string {
 export async function waitForMirrorIndexing(sdkTransactionId: string, maxAttempts = 8, delayMs = 1000): Promise<void> {
   const mirrorPath = toMirrorTransactionPath(sdkTransactionId);
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const res = await fetch(`${MIRROR_BASE}/api/v1/transactions/${mirrorPath}`, { cache: "no-store" });
-    if (res.ok) return;
+    // A dropped request counts as not indexed yet, like a 404: the wait is a courtesy, never a failure.
+    const res = await fetch(`${MIRROR_BASE}/api/v1/transactions/${mirrorPath}`, { cache: "no-store" }).catch(
+      () => null,
+    );
+    if (res?.ok) return;
     await sleep(delayMs);
   }
 }
