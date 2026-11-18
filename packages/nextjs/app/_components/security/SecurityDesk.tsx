@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SetupStep, useSecurityDesk } from "~~/app/_components/security/useSecurityDesk";
+import type { SecurityDeskHook, SetupStep } from "~~/app/_components/security/useSecurityDesk";
 import { hashscanAccount, hashscanSchedule, hashscanToken, hashscanTransaction } from "~~/services/security/hashscan";
 import type { DeskStateView, HolderId, OrderAction } from "~~/services/security/types";
 
@@ -32,7 +32,7 @@ function StepIcon({ status }: { status: SetupStep["status"] }) {
   return <span className="text-base-content/40">•</span>;
 }
 
-function SetupPanel({
+export function SetupPanel({
   configured,
   missing,
   steps,
@@ -112,7 +112,7 @@ function describeWallet(wallet: DeskStateView["wallet"]): string {
   return "No wallet is connected to this desk.";
 }
 
-function WalletStateCard({ wallet }: { wallet: DeskStateView["wallet"] }) {
+export function WalletStateCard({ wallet }: { wallet: DeskStateView["wallet"] }) {
   return (
     <p id="wallet-state" className="text-sm text-base-content/70 m-0">
       {describeWallet(wallet)}
@@ -157,7 +157,7 @@ function HolderRow({ holder, busy, onSend }: { holder: HolderView; busy: boolean
   );
 }
 
-function HoldersPanel({
+export function HoldersPanel({
   holders,
   busy,
   onSend,
@@ -181,7 +181,7 @@ function HoldersPanel({
   );
 }
 
-function OrderPanel({
+export function OrderPanel({
   holders,
   busy,
   onPropose,
@@ -263,7 +263,7 @@ function OrderPanel({
   );
 }
 
-function TokenPanel({ token }: { token: NonNullable<DeskStateView["token"]> }) {
+export function TokenPanel({ token }: { token: NonNullable<DeskStateView["token"]> }) {
   return (
     <div className="card bg-base-100 border border-base-300 shadow-sm">
       <div className="card-body gap-3">
@@ -366,7 +366,7 @@ function PendingRow({
   );
 }
 
-function PendingPanel({
+export function PendingPanel({
   rows,
   isWalletOfficer,
   busy,
@@ -429,7 +429,7 @@ function HistoryRow({ row }: { row: HistoryView }) {
   );
 }
 
-function HistoryPanel({ rows }: { rows: HistoryView[] }) {
+export function HistoryPanel({ rows }: { rows: HistoryView[] }) {
   return (
     <div className="card bg-base-100 border border-base-300 shadow-sm">
       <div className="card-body gap-3">
@@ -461,8 +461,8 @@ function RightColumnPlaceholder() {
   );
 }
 
-export function SecurityDesk() {
-  const desk = useSecurityDesk();
+/** Every control at once: the desk as it was before the tour, kept for anyone who wants it all on one page. */
+export function SecurityDesk({ desk }: { desk: SecurityDeskHook }) {
   const { state } = desk;
 
   if (!state) {

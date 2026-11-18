@@ -21,10 +21,49 @@ Three parties:
 
 ## What a user sees
 
-**Layout.** The title and a short explanation span the top: what a regulated
-security is, that the rules are keys the network enforces rather than contract
-code, and that admin actions take two officers. Below them, on a window at
-least 1024px wide, two columns scroll together with the page: what the learner
+**Two views.** The title and a one-sentence explanation span the top, beside a
+`Hedera testnet` badge and a Tour / Sandbox toggle (`#view-tour`,
+`#view-sandbox`). `/` is the tour; `/?view=sandbox` is every control on one
+page. Both read the same desk.
+
+**The tour** walks the desk one step at a time. `#tour-progress` shows five
+steps — `Set up`, `Propose`, `Approve`, `Break it`, `More orders` — with
+finished ones ticked and the current one highlighted. The step follows the
+desk, not the tab: before setup it is `Set up`; until an order has been
+approved it is `Propose`, or `Approve` while one is pending; after that the
+reader moves freely between `Break it` and `More orders` from the stepper. Each
+step fits a 1440×900 window, with the step's action in a highlighted card and
+the exact network calls in a collapsed "Under the hood" section.
+
+Once the desk exists, `#token-strip` stays above every step: the symbol, the
+token id linked to HashScan, whether all five keys are 2-of-3, `#strip-status`
+(`ACTIVE` or `PAUSED`), `#strip-supply`, how many orders wait for a signature,
+and a badge per holder with its balance, KYC and frozen state.
+
+1. **Set up** — the setup checklist below, with a note that a wallet must be
+   connected *before* setup to become Officer 3, and what setup costs.
+2. **Propose** — the court order is fixed to freezing Holder A. A case
+   reference (`#tour-reference`, default `CASE-2026-114`) and `#propose-freeze`,
+   labelled `Propose as Officer 1`. Beside it, "Who has signed?" shows the
+   three officers and how many have signed.
+3. **Approve** — the pending order, its schedule id linked to HashScan, its
+   case reference and expiry, and `#approve-order`, labelled `Approve as
+   Officer 2`; `#approve-as-wallet` too when the wallet is Officer 3. The
+   network's answer is announced above the next step with a HashScan link.
+4. **Break it** — three attacks, each a real transaction, in its own card with
+   what it tries, the call it makes and its result: `#send-no-kyc` sends 10 to
+   Holder B (`#send-no-kyc-result`); `#send-frozen` sends 10 to the frozen
+   Holder A (`#send-frozen-result`); `#one-officer` sends an admin transaction
+   for Holder A's freeze signed by Officer 1 alone (`#one-officer-result`). A
+   refusal shows in red with the network's code and a link to the transaction;
+   an acceptance shows in amber; an attack that cannot run yet (Holder A not
+   frozen) says so in neutral colours and does not count. A count says how many
+   were tried and refused, and `#next-orders` moves on.
+5. **More orders** — the court order form and pending approvals below, the
+   holders with their `Send 10` buttons, and the history, collapsed.
+
+**The sandbox** keeps the original layout: on a window at least 1024px wide,
+two columns scroll together with the page: what the learner
 *does* on the left (setup, the holders, the court order), what the **network
 shows** on the right (the token, its keys, pending approvals, history). Before
 setup the right column holds a placeholder card saying what will appear there.
@@ -158,14 +197,19 @@ officer.
 **Private keys never reach the browser.** No response the server sends contains
 the operator key or an officer's or holder's key.
 
+**One officer cannot act alone.** An admin transaction signed by Officer 1
+alone — the tour's third attack — reaches the network and is refused with
+`INVALID_SIGNATURE`: the operator's signature pays the fee, but a payer's
+signature counts for nothing towards the token's 2-of-3 key.
+
 **Nothing half-rendered is ever shown.** No element above displays `undefined`,
 `NaN`, `null`, or an empty value while visible; a control that is working shows
 it and cannot be pressed twice.
 
 ## How this will be checked
 
-1. Open `/` at 1024px or wider. Confirm the title on top, the two columns below,
-   and `#setup-desk` visible without scrolling.
+1. Open `/?view=sandbox` at 1024px or wider. Confirm the title on top, the two
+   columns below, and `#setup-desk` visible without scrolling.
 2. Press `#setup-desk`. Watch the four steps reach `done`. Confirm `#token-id`
    exists on the mirror node as a token, and that `#token-keys` shows five rows
    each reading `2-of-3 threshold`, matching the key structure the mirror node
@@ -194,6 +238,12 @@ it and cannot be pressed twice.
     history says it was withdrawn, and nothing about the token changed.
 12. Inspect the responses the page received during all of the above for any
     private key.
+13. On a fresh desk, open `/` and walk the tour: `#propose-freeze`, then
+    `#approve-order`. Confirm Holder A reads frozen in `#token-strip`. Run the
+    three attacks and confirm each result reads refused —
+    `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`, `ACCOUNT_FROZEN_FOR_TOKEN`,
+    `INVALID_SIGNATURE` — with a HashScan link to a transaction the mirror node
+    reports with that result, and that Holder A is still frozen.
 
 Connecting a wallet and signing with it is **not** checked: the checker has no
 wallet. It is still part of the feature and must be implemented as described.
