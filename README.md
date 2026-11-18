@@ -30,7 +30,7 @@ The home page walks the desk one step at a time; the **Sandbox** tab has every c
 1. **Set up** — the bill, the stablecoin, the feed, the repo contract and the borrower.
 2. **Pledge** — the borrower puts 10 bills on hold; they stay in the borrower's account.
 3. **Borrow** — the lender lends against the pledge after a 2% haircut.
-4. **Break it** — move the held bills, take the pledge back early, send the bills somewhere other than the lender, or pledge a hold the lender cannot collect. Each attempt runs against the live contracts and is refused.
+4. **Break it** — move the held bills, take the pledge back early, send the bills somewhere other than the lender, or pledge a hold the lender cannot collect. Each attempt runs against the live contracts and is refused. Three are sent as real transactions, so the refusal is on HashScan; only the escrow could sign the redirect, so it is asked with an `eth_call`.
 5. **Stress it** — publish a rate shock, push the loan past 99% loan-to-value, freeze the bill.
 6. **Resolve** — repay and get the bills back, or liquidate at the price trigger or the end of the term.
 

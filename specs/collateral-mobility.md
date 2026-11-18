@@ -334,7 +334,11 @@ The steps:
    its own card with what it tries, the call it makes, and its result
    (`#transfer-result`, `#reclaim-result`, `#redirect-result`). A refusal shows
    in red with a cross and the error name: the attack failed, which is the
-   pledge holding. An acceptance shows in amber, saying something is broken. A
+   pledge holding. The transfer and the reclaim are sent as real transactions,
+   so their refusal links to the reverted transaction on HashScan. The redirect
+   can only be signed by the escrow, the repo contract, which has no function
+   for it, so it is asked with an `eth_call` and its card says it was not sent.
+   An acceptance shows in amber, saying something is broken. A
    fourth card shows the fake pledge's
    result from step 2 (`#wrong-escrow-result`), or that it runs on the Pledge
    step. A count says how many of the four were tried and how many refused,
@@ -372,8 +376,9 @@ phones.
 trip so it does not use up the desk: the borrower pledges every bill naming the
 lender as escrow, the loan the tour borrows is asked for and refused with the
 escrow mismatch, and then the lender, as that hold's escrow, releases it, so the
-bills are free again for the real pledge. `#wrong-escrow-result` shows the
-refusal of the loan and says the fake hold was released. It needs every bill
+bills are free again for the real pledge. The loan is sent, not only simulated,
+so `#wrong-escrow-result` shows the refusal with a link to the reverted
+transaction on HashScan, and says the fake hold was released. It needs every bill
 free, which is why it lives on the Pledge step.
 
 **The pledge encumbers in place.** `#pledge-collateral` has the borrower create

@@ -6,6 +6,7 @@ import {
   BILLS_ISSUED,
   CASH_UNITS_PER_USD,
   DEMO_BILL_DAYS,
+  GAS_ATTACK,
   GAS_CONTROL_LIST,
   GAS_CREATE_HOLD,
   GAS_HTS_APPROVE,
@@ -471,7 +472,8 @@ async function transferPledged(): Promise<ActionResult> {
     abi: billAbi,
     functionName: "transfer",
     args: [operator.account.address, attempt],
-    gas: GAS_ISSUE,
+    gas: GAS_ATTACK,
+    sendRefusal: true,
   });
   invalidateSnapshot();
   return outcome(done, "The transfer went through, which should not happen.");
@@ -488,7 +490,8 @@ async function reclaimPledge(): Promise<ActionResult> {
     abi: billAbi,
     functionName: "reclaimHoldByPartition",
     args: [{ partition: PARTITION, tokenHolder: borrower.address, holdId: desk.holdId }],
-    gas: GAS_CONTROL_LIST * 2n,
+    gas: GAS_ATTACK,
+    sendRefusal: true,
   });
   invalidateSnapshot();
   return outcome(done, "The pledge was reclaimed, which should not happen while the hold is live.");
@@ -496,8 +499,8 @@ async function reclaimPledge(): Promise<ActionResult> {
 
 /**
  * The wrong-escrow attack as one round trip, so it costs no fresh desk: pledge every bill naming the lender as escrow,
- * ask for the loan the tour borrows, then release the hold as its escrow so the bills are free for the real pledge.
- * The refusal of the loan is the result; the release only tidies up after it.
+ * send the loan the tour borrows so the refusal is on the ledger, then release the hold as its escrow so the bills are
+ * free for the real pledge. The refusal of the loan is the result; the release only tidies up after it.
  */
 async function fakePledge(): Promise<ActionResult> {
   const { operator, desk } = context();
@@ -505,8 +508,27 @@ async function fakePledge(): Promise<ActionResult> {
   if (!pledged.ok || desk.holdId === null) return pledged;
   const holdId = desk.holdId;
 
-  const attempt = await openLoan({ amount: "9600" });
-  if (attempt.ok) return { ...attempt, message: "The loan opened against a fake pledge, which should not happen." };
+  const attempt = outcome(
+    await execute({
+      account: operator.account,
+      action: "Open a loan of $9,600 against the fake pledge",
+      to: desk.repo.address,
+      abi: repoAbi,
+      functionName: "openLoan",
+      args: [
+        desk.activeBorrower,
+        holdId,
+        MAX_PLEDGE_BILLS,
+        9_600n * CASH_UNITS_PER_USD,
+        BigInt(REPO_RATE_BPS),
+        BigInt(TERM_DAYS),
+      ],
+      gas: GAS_ATTACK,
+      sendRefusal: true,
+    }),
+    "The loan opened against a fake pledge, which should not happen.",
+  );
+  if (attempt.ok) return attempt;
 
   const released = await execute({
     account: operator.account,

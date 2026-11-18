@@ -41,6 +41,8 @@ export const GAS_CREATE_HOLD = 480_000n;
 export const GAS_ASSOCIATE = 800_000n;
 export const GAS_HTS_APPROVE = 800_000n;
 export const GAS_HTS_TRANSFER = 120_000n;
+/** For the attacks sent on-chain, which revert and so cannot be estimated. Measured at 93k–128k used. */
+export const GAS_ATTACK = 200_000n;
 /** Headroom over `eth_estimateGas` for ordinary calls. */
 export const GAS_ESTIMATE_MARGIN_PERCENT = 125n;
 /**
@@ -51,7 +53,7 @@ export const STABLECOIN_CREATE_VALUE_WEI = 40n * 10n ** 18n;
 /** What the operator must hold before setup starts, so a short balance is refused up front, not halfway through. */
 export const SETUP_MIN_BALANCE_HBAR = 100;
 /** HBAR sent to the demo borrower so it can pay gas for its own transactions. */
-export const BORROWER_GAS_FUNDING_WEI = 6n * 10n ** 18n;
+export const BORROWER_GAS_FUNDING_WEI = 10n * 10n ** 18n;
 
 // The bill. ATS stores the nominal value with 2 decimals: a $1,000 face is 100000.
 export const BILL_NAME = "13-Week T-Bill";

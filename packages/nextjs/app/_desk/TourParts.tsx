@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Outcome } from "./ControlCards";
 import { ActivityList } from "./DeskCards";
-import { DASH, show } from "./ui";
+import { DASH, show, txLink } from "./ui";
 import { DEMO_BILL_DAYS, SECONDS_PER_DAY } from "~~/services/repo/constants";
 import type { ActionResult, ActivityEntry, DeskView } from "~~/types/repo";
 
@@ -474,6 +474,11 @@ export function AttackOutcome({
           Refused · <span className="font-mono">{result.result}</span>
         </strong>
         <span>{explain(result, meaning)}</span>
+        {result.txHash ? (
+          <a className="link" href={txLink(result.txHash)} target="_blank" rel="noreferrer">
+            The refused transaction on HashScan
+          </a>
+        ) : null}
       </span>
     </div>
   );

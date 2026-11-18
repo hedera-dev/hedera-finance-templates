@@ -1,5 +1,5 @@
-// Server-only: operator transactions, each simulated first so a refusal is decoded before anything is sent,
-// and each recorded in the activity log.
+// Server-only: operator transactions, each simulated first so a refusal is decoded before anything is sent (unless
+// the refusal is the point, as for an attack), and each recorded in the activity log.
 import { logActivity } from "./desk";
 import { decodeFailure } from "./errors";
 import { type SendOutcome, sendTransaction, simulate, withTxLock } from "./rpc";
@@ -22,9 +22,11 @@ type CallSpec = {
   value?: bigint;
   /** Record the action in the log. Setup records its own, coarser, entries. */
   log?: boolean;
+  /** Send even if the simulation refuses, so the refusal is on the ledger. Needs `gas`: a revert cannot be estimated. */
+  sendRefusal?: boolean;
 };
 
-/** Simulate, and only if the network would accept it, send once. Never throws for a refusal. */
+/** Simulate, and only if the network would accept it (or `sendRefusal` is set), send once. Never throws for a refusal. */
 export function execute(spec: CallSpec): Promise<Executed> {
   return withTxLock(async () => {
     const record = (result: string, hash?: Hex) => {
@@ -40,7 +42,7 @@ export function execute(spec: CallSpec): Promise<Executed> {
       gas: spec.gas,
       value: spec.value,
     });
-    if (!simulation.ok) {
+    if (!simulation.ok && !spec.sendRefusal) {
       record(simulation.name);
       return { ok: false, name: simulation.name, message: simulation.message };
     }
@@ -53,6 +55,10 @@ export function execute(spec: CallSpec): Promise<Executed> {
         gas: spec.gas,
         value: spec.value,
       });
+      if (outcome.status !== "success" && !simulation.ok) {
+        record(simulation.name, outcome.hash);
+        return { ok: false, name: simulation.name, message: simulation.message, hash: outcome.hash };
+      }
       if (outcome.status !== "success") {
         record("Reverted", outcome.hash);
         return {

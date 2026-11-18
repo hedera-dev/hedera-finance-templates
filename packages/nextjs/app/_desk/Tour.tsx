@@ -495,7 +495,7 @@ const ATTACKS: {
     request: { type: "transfer-pledged" },
     resultId: "transfer-result",
     who: "Borrower",
-    guard: "guarded by ATS",
+    guard: "guarded by ATS · sent on-chain",
     title: "Move the locked bills",
     text: "Sell the bills while they back a loan, by sending more than the free balance.",
     meaning: "Held bills are not transferable, and the wallet has no free bills to move.",
@@ -506,7 +506,7 @@ const ATTACKS: {
     request: { type: "reclaim-pledge" },
     resultId: "reclaim-result",
     who: "Borrower",
-    guard: "guarded by ATS",
+    guard: "guarded by ATS · sent on-chain",
     title: "Take the pledge back early",
     text: "Cancel the hold halfway through the loan and walk away with the bills.",
     meaning: "A hold can only be reclaimed once it expires, and it outlasts the loan term plus grace.",
@@ -517,11 +517,11 @@ const ATTACKS: {
     request: { type: "redirect-pledge" },
     resultId: "redirect-result",
     who: "Escrow",
-    guard: "guarded by ATS · simulated, nothing sent",
+    guard: "guarded by ATS · asked, not sent",
     title: "Send the bills somewhere else",
     text: "Even the escrow tries to execute the hold to an address other than the lender.",
     meaning: "ATS only executes a hold to the destination fixed when it was created.",
-    code: "bill.executeHoldByPartition(hold, borrower, 10)   // eth_call from the repo contract",
+    code: "bill.executeHoldByPartition(hold, borrower, 10)   // eth_call as the repo contract: no key can sign it",
   },
 ];
 
@@ -538,7 +538,8 @@ function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
           <h2 className="m-0 text-xl font-bold">Try to break it</h2>
           <p className="m-0 text-sm text-base-content/80">
             The loan is open at <span id="ltv">{show(desk.position.ltv, "unavailable")}</span>, so the pledge is live.
-            Try to get around it before you stress the price. Each attempt should be refused.{" "}
+            Try to get around it before you stress the price. Each attempt should be refused. Three are sent as real
+            transactions, so each refusal links to HashScan; only the escrow could send the fourth, so it is asked.{" "}
             <strong>A refusal is a pass</strong>; an &quot;Accepted&quot; means the pledge would not be worth lending
             against.
           </p>
@@ -583,9 +584,9 @@ function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
           </p>
           <pre className="m-0 rounded-box bg-[#11151d] text-[#f0f0f2] px-3 py-2 text-[12px] whitespace-pre-wrap font-mono">
             {`bill.createHoldByPartition(…, { escrow: lender, … })
-repo.openLoan(…)   // expect: refused, wrong escrow`}
+repo.openLoan(…)   // sent; expect: refused, wrong escrow`}
           </pre>
-          <span className="text-xs text-base-content/60">Borrower · guarded by the repo contract</span>
+          <span className="text-xs text-base-content/60">Borrower · guarded by the repo contract · sent on-chain</span>
           {results["fake-pledge"] ? (
             <AttackOutcome id="wrong-escrow-result" result={results["fake-pledge"]} />
           ) : (
