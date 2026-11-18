@@ -35,6 +35,8 @@ export type TradeSnapshot = {
   settlesAt: string | null;
   /** ISO timestamp the trade was proposed at. */
   proposedAt: string;
+  /** Mirror node consensus time of the settlement transaction, once the schedule executed: HashScan links by it. */
+  executedAt: string | null;
 };
 
 export type AuditEntrySnapshot = {

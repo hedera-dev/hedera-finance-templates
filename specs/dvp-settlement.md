@@ -22,6 +22,49 @@ Buyer's place with their own testnet account, against a demo counterparty.
 
 ## What a user sees
 
+**Two views.** The title and a one-sentence explanation span the top, beside a
+`Hedera testnet` badge and a Tour / Sandbox toggle (`#view-tour`,
+`#view-sandbox`). `/` is the tour; `/?view=sandbox` is every control on one
+page, as described from **An explanation** on. Both read the same market.
+
+**The tour** walks the desk one step at a time. `#tour-progress` shows five
+steps — `Set up`, `Propose`, `Sign`, `Break it`, `More trades` — with finished
+ones ticked and the current one highlighted. The step follows the market, not
+the tab: before setup it is `Set up`; until a trade has settled it is
+`Propose`, or `Sign` while the demo Seller's on-signature trade to the Buyer
+waits; after that the reader moves freely between `Break it` and `More trades`
+from the stepper. Each step fits a 1440×900 window, with the step's action in a
+highlighted card and the exact network calls in a collapsed "Under the hood"
+section.
+
+Once the market exists, `#market-strip` stays above every step: both token ids
+and the audit topic id linked to HashScan, and each party's security and
+stablecoin balance, the Unverified Buyer marked `no KYC`.
+
+1. **Set up** — the Setup section below, with who is who and what setup costs
+   (about 48 testnet HBAR, most of it the fee for creating two tokens).
+2. **Propose** — the terms are fixed: `100` security for `10000` stablecoin to
+   the Buyer, settling on the Buyer's signature. `#tour-propose`, labelled
+   `Propose and sign as Seller`. Beside it, "Who has signed?" shows both legs
+   and which party has signed.
+3. **Sign** — the pending schedule linked to HashScan, and `#tour-sign`,
+   labelled `Sign as Buyer`. The settlement is announced above the next step,
+   with a link to the settlement transaction on HashScan.
+4. **Break it** — three attacks, each a real transaction, in its own card with
+   what it tries, the calls it makes and its result: `#no-kyc` sells `10`
+   security for `1000` stablecoin to the Unverified Buyer (`#no-kyc-result`);
+   `#short-payment` sells `10` security to the Buyer for `100000` stablecoin,
+   more than setup ever gives it (`#short-payment-result`); `#buyer-cancels`
+   has the Buyer try to delete a fresh schedule of the Seller's
+   (`#buyer-cancels-result`), after which the Seller cancels it. A refusal shows
+   in red with the network's code and a link to the refused transaction; an
+   acceptance shows in amber; an attack that cannot run says why in neutral
+   colours and does not count. A count says how many were tried and refused,
+   and `#next-trades` moves on.
+5. **More trades** — the trades list with its `Sign as Buyer` and `Cancel`
+   controls, the trade ticket, and the audit log, collapsed. HashPack signing
+   stays in the Sandbox.
+
 **An explanation.** A short paragraph at the top says what DvP is and that both
 legs settle together or not at all.
 
@@ -282,6 +325,14 @@ each step without a page reload.
 **Private keys never reach the browser.** No response the server sends to the
 page contains the operator key or any demo account's private key.
 
+**Neither leg moves alone, and only the Seller can cancel.** The tour's attacks
+reach the network and are refused: a trade to the Unverified Buyer executes
+with `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`, a trade the Buyer cannot pay for
+executes with `INSUFFICIENT_TOKEN_BALANCE`, and in both no token moves — the
+mirror node shows the scheduled transaction with no token transfers. A
+`ScheduleDeleteTransaction` signed by the Buyer is refused with
+`INVALID_SIGNATURE`, because the schedule's admin key is the Seller's.
+
 **Nothing half-rendered is ever shown.** At no point does any element above
 display `undefined`, `NaN`, `null`, or an empty value while visible. While a
 step is in progress its control shows that it is working and cannot be pressed
@@ -289,7 +340,9 @@ twice.
 
 ## How this will be checked
 
-1. Open `/` on a window at least 1024px wide. Confirm the title and explanation
+Steps 1–11 use the Sandbox, `/?view=sandbox`; step 12 walks the tour.
+
+1. Open `/?view=sandbox` on a window at least 1024px wide. Confirm the title and explanation
    span the top, and below them the two columns: Signing, Setup and the ticket
    on the left; the placeholder (later the market, trades list and audit log) on
    the right. Scrolling the page moves both columns together. Confirm `#setup-market` is visible without scrolling.
@@ -337,6 +390,13 @@ twice.
     `#wallet-config-error` names `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID`. Switch
     back to `Demo accounts` and confirm the demo trade controls are usable
     again.
+12. Set up a fresh market, open `/` and walk the tour: `#tour-propose`, then
+    `#tour-sign`. Confirm `#market-strip` shows the Seller at `100` security and
+    `10000` stablecoin. Run the three attacks and confirm each result reads
+    refused — `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`,
+    `INSUFFICIENT_TOKEN_BALANCE`, `INVALID_SIGNATURE` — with a HashScan link to
+    a transaction the mirror node reports with that result, and that no balance
+    in `#market-strip` changed.
 
 Completing a HashPack connection or a HashPack signature is **not** checked:
 the checker has no HashPack wallet. It is still part of the feature and must be

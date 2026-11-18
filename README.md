@@ -12,3 +12,5 @@ npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#template
 yarn install
 yarn next:dev   # http://localhost:3000
 ```
+
+The page opens on a guided tour: **Set up** the market, have the Seller **Propose** a trade, **Sign** it as the Buyer so both legs settle in one transaction, **Break it** with three trades the network refuses (each with a HashScan link), and make **More trades**, including ones that settle at a set time. The **Sandbox** tab (`/?view=sandbox`) has every control on one page, including signing with HashPack. Setup costs about 48 testnet HBAR, 36 of it the fee for creating two tokens.
