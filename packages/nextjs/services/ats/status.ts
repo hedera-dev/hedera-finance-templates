@@ -2,10 +2,23 @@
 // balance, supply and approval flag read fresh from the chain. Shared by the status route and
 // every mutating route, so each action's response reflects the result immediately.
 import { getOperatorConfig } from "./clients";
+import type { WriteOutcome } from "./investors";
 import { readBondView, readInvestorView } from "./read";
 import { getDesk } from "./state";
 import type { Address } from "viem";
 import type { BondTerms, DeskStatus, InvestorView } from "~~/types/ats";
+
+/** The status after an action, carrying its outcome: the refusal's name and the transaction, when one was sent. */
+export async function statusAfter(outcome: WriteOutcome, success: string): Promise<DeskStatus> {
+  const status = await buildDeskStatus();
+  if (outcome.ok)
+    return { ...status, actionResult: { ok: true, result: "SUCCESS", message: success, txHash: outcome.txHash } };
+  return {
+    ...status,
+    actionError: outcome.error,
+    actionResult: { ok: false, result: outcome.errorName, message: outcome.error, txHash: outcome.txHash },
+  };
+}
 
 export async function buildDeskStatus(): Promise<DeskStatus> {
   const operator = getOperatorConfig();

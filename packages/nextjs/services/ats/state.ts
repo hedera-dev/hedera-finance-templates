@@ -1,7 +1,7 @@
 // Server-only: the desk's in-memory state (bond, demo/wallet investors, activity log). Kept in
 // server memory per the spec; it need not survive a restart. Stashed on `globalThis` so Next's
 // dev-mode module reloading can't give route handlers separate copies of the singleton.
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
 export type ActivityEntry = {
   id: string;
@@ -82,6 +82,26 @@ export function setWalletInvestor(investor: InvestorRecord): void {
     i => i.label !== "Your wallet" || i.address.toLowerCase() === investor.address.toLowerCase(),
   );
   addInvestor(investor);
+}
+
+const KEYS_KEY = "__atsBondInvestorKeys__";
+
+/**
+ * Demo investors' keys, by address, kept apart from the records: every record is spread into the status the browser
+ * receives, so a key on one would be sent with it.
+ */
+function getKeys(): Record<string, Hex> {
+  const g = globalThis as typeof globalThis & { [KEYS_KEY]?: Record<string, Hex> };
+  if (!g[KEYS_KEY]) g[KEYS_KEY] = {};
+  return g[KEYS_KEY];
+}
+
+export function rememberInvestorKey(address: Address, key: Hex): void {
+  getKeys()[address.toLowerCase()] = key;
+}
+
+export function investorKey(address: string): Hex | undefined {
+  return getKeys()[address.toLowerCase()];
 }
 
 export function findInvestor(address: string): InvestorRecord | undefined {

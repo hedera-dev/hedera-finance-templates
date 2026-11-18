@@ -46,7 +46,19 @@ export type DeskStatus = {
   activity: ActivityEntryView[];
   /** Set when the action that produced this status was refused, with the reason to show. */
   actionError?: string;
+  /** The outcome of the action that produced this status: what the tour shows beside its button. */
+  actionResult?: ActionResult;
 };
+
+export type ActionResult = {
+  ok: boolean;
+  /** `SUCCESS`, or the refusal decoded to its ATS error name. */
+  result: string;
+  message: string;
+  txHash?: string;
+};
+
+export type AttackType = "issue-unapproved" | "over-cap" | "transfer-unapproved";
 
 export type IssueBondInput = {
   name: string;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Address } from "viem";
 import { revokeInvestor } from "~~/services/ats/investors";
 import { addActivity, findInvestor, getDesk } from "~~/services/ats/state";
-import { buildDeskStatus } from "~~/services/ats/status";
+import { statusAfter } from "~~/services/ats/status";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,11 +28,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ addres
   addActivity({
     action: `Revoked ${investor.label}`,
     result: outcome.ok ? "SUCCESS" : outcome.errorName,
-    txHash: outcome.ok ? outcome.txHash : undefined,
+    txHash: outcome.txHash,
   });
 
   // 200 with the refusal attached: the action was carried out, and its answer was no. The
   // page shows `actionError`; without it a refusal was visible only in the activity log.
-  const status = await buildDeskStatus();
-  return NextResponse.json(outcome.ok ? status : { ...status, actionError: outcome.error });
+  return NextResponse.json(await statusAfter(outcome, `${investor.label} is off the allowlist.`));
 }

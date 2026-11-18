@@ -12,15 +12,56 @@ Three parties:
   its admin, issuer and control-list roles, approves investors and distributes
   bonds.
 - **Investors** — two demo investors the app creates: one the learner is
-  expected to approve, one they are expected to leave unapproved.
+  expected to approve, one they are expected to leave unapproved. Investor A's
+  key also signs the tour's one investor-to-investor transfer.
 - **Wallet investor** (optional) — the learner's own MetaMask account on Hedera
   testnet, which can be approved, receive bonds, and transfer them.
 
 ## What a user sees
 
-**Layout.** The title and a short explanation span the top: what a tokenised
-bond is, that ATS issues it from contracts already on Hedera, and that only
-approved investors may hold it. Below them, on a window at least 1024px wide,
+**Two views.** The title and a one-sentence explanation span the top, beside a
+`Hedera testnet` badge and a Tour / Sandbox toggle (`#view-tour`,
+`#view-sandbox`). `/` is the tour; `/?view=sandbox` is every control on one
+page. Both read the same desk, so either can pick up where the other left off.
+
+**The tour** walks the desk one step at a time. `#tour-progress` shows five
+steps — `Issue`, `Approve`, `Distribute`, `Break it`, `Manage the list` — with
+finished ones ticked and the current one highlighted. The step is read from the
+chain, not remembered by the tab: no bond is `Issue`; a bond with nothing issued
+and no one approved is `Approve`; approved but nothing issued is `Distribute`;
+once bonds are out the reader moves freely between `Break it` and
+`Manage the list` from the stepper. Each step fits a 1440×900 window, with the
+step's one action in a highlighted card and the exact contract call in a
+collapsed "Under the hood" section.
+
+Once a bond exists, `#bond-strip` stays above every step: symbol, ISIN, face
+value, the Hedera contract id linked to HashScan, `#strip-issued` of the maximum
+supply with a bar, the maturity date, and a badge per investor saying whether it
+is on the allowlist.
+
+1. **Issue** — the issue form below. While issuing, the progress checklist sits
+   in the side column instead of the list of what comes next.
+2. **Approve** — `#approve-investor-a`, labelled `Approve Investor A`, puts
+   Investor A on the allowlist. The page says to leave Investor B off. A
+   picture beside it shows each investor, its balance, and whether the
+   allowlist lets it hold the bond.
+3. **Distribute** — `#distribute-amount` (default `100`) and `#distribute`
+   issue bonds to Investor A. A success on steps 2 and 3 is announced above the
+   next step with a HashScan link; a refusal shows beside the button.
+4. **Break it** — three attacks, each in its own card with what it tries, the
+   call it makes and its result: `#issue-unapproved` issues 100 to Investor B,
+   who is not on the allowlist (`#issue-unapproved-result`); `#over-cap` issues
+   one more than the maximum supply allows to an approved investor
+   (`#over-cap-result`); `#transfer-unapproved` has Investor A send 1 bond to
+   Investor B (`#transfer-unapproved-result`). Each is sent as a real
+   transaction even though the bond is expected to refuse it, so a refusal shows
+   in red with the decoded error and a link to the reverted transaction on
+   HashScan. An acceptance shows in amber, saying something is broken. A count
+   says how many were tried and refused, and `#next-manage` moves on.
+5. **Manage the list** — the investor rows below, with collapsed sections for
+   the wallet investor, the activity log and issuing a fresh bond.
+
+**The sandbox** keeps the original layout: on a window at least 1024px wide,
 two columns scroll together with the page: what the learner *does* on the left
 (the issue form, then investor actions), what the network *shows* on the right
 (the bond, the investors, the activity log). Before a bond exists the right
@@ -144,9 +185,9 @@ working shows it and cannot be pressed twice.
 
 ## How this will be checked
 
-1. Open `/` at 1024px or wider. Confirm the title on top, the two columns below
-   (issue form left, placeholder right), and `#issue-bond` visible without
-   scrolling.
+1. Open `/?view=sandbox` at 1024px or wider. Confirm the title on top, the two
+   columns below (issue form left, placeholder right), and `#issue-bond`
+   visible without scrolling.
 2. Change `#bond-isin` to `US0378331006` and press `#issue-bond`: confirm it is
    refused before anything is signed with a message about the check digit. Put
    back `US0378331005`.
@@ -167,6 +208,13 @@ working shows it and cannot be pressed twice.
    private key.
 8. Without connecting a wallet, confirm `#wallet-state` says to connect and
    `#add-wallet-investor` is not offered.
+9. On a fresh bond, open `/` and walk the tour: `#approve-investor-a`, then
+   `#distribute` with `100`. Confirm the stepper reaches `Break it` and
+   `#bond-strip` shows `100` issued. Run the three attacks and confirm each
+   result reads refused — `AccountIsBlocked`, `MaxSupplyReached`,
+   `AccountIsBlocked` — with a HashScan link whose transaction the mirror node
+   reports as `CONTRACT_REVERT_EXECUTED`, and that the supply and balances are
+   unchanged.
 
 Connecting MetaMask and signing with it is **not** checked: the checker has no
 MetaMask wallet. It is still part of the feature and must be implemented as
@@ -247,8 +295,11 @@ described.
   DER-encoded ECDSA — because JSON-RPC transactions are ECDSA-signed. An ED25519
   key is refused at start with a readable `#config-error`.
 - Demo investors are Hedera accounts the app creates with ECDSA keys and an EVM
-  address set from the public key, funded with at most `1` HBAR each (they sign
-  nothing). Their keys stay on the server.
+  address set from the public key, funded with `1` HBAR each. Their keys stay in
+  server memory, apart from the investor records, which are sent to the browser;
+  Investor A's key signs only the tour's refused transfer.
+- The tour's attacks revert, so their gas cannot be estimated: they are sent
+  with a fixed limit of `150000` (measured at 74k–89k used).
 - Server routes live under `packages/nextjs/app/api/`, following the pattern in
   `packages/nextjs/app/api/hedera/`. The browser signs only the wallet
   investor's own transfers, through wagmi.

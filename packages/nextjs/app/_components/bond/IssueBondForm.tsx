@@ -30,9 +30,19 @@ type Props = {
   issueError: string | null;
   steps: StepsState;
   onIssue: (input: IssueBondInput) => void;
+  /** The tour shows the checklist in its side column instead, so the step fits one screen. */
+  progressElsewhere?: boolean;
 };
 
-export const IssueBondForm = ({ configured, configError, issuing, issueError, steps, onIssue }: Props) => {
+export const IssueBondForm = ({
+  configured,
+  configError,
+  issuing,
+  issueError,
+  steps,
+  onIssue,
+  progressElsewhere,
+}: Props) => {
   const [name, setName] = useState(DEFAULTS.name);
   const [symbol, setSymbol] = useState(DEFAULTS.symbol);
   const [isin, setIsin] = useState(DEFAULTS.isin);
@@ -40,7 +50,8 @@ export const IssueBondForm = ({ configured, configError, issuing, issueError, st
   const [maturityMonths, setMaturityMonths] = useState(DEFAULTS.maturityMonths);
   const [maxSupply, setMaxSupply] = useState(DEFAULTS.maxSupply);
   const [isinError, setIsinError] = useState<string | null>(null);
-  const [showProgress, setShowProgress] = useState(false);
+  // Starts open when the form mounts mid-issue, as it does when the tour returns to step 1 for a fresh bond.
+  const [showProgress, setShowProgress] = useState(issuing);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +169,7 @@ export const IssueBondForm = ({ configured, configError, issuing, issueError, st
           {issueError ? <p className="text-error text-sm">{issueError}</p> : null}
         </form>
 
-        {showProgress ? <IssueProgress steps={steps} /> : null}
+        {showProgress && !progressElsewhere ? <IssueProgress steps={steps} /> : null}
       </div>
     </div>
   );

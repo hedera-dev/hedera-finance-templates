@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Address } from "viem";
 import { issueToInvestor } from "~~/services/ats/investors";
 import { addActivity, findInvestor, getDesk } from "~~/services/ats/state";
-import { buildDeskStatus } from "~~/services/ats/status";
+import { statusAfter } from "~~/services/ats/status";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,9 +34,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ address
   addActivity({
     action: `Issued ${amount} to ${investor.label}`,
     result: outcome.ok ? "SUCCESS" : outcome.errorName,
-    txHash: outcome.ok ? outcome.txHash : undefined,
+    txHash: outcome.txHash,
   });
 
-  const status = await buildDeskStatus();
-  return NextResponse.json(outcome.ok ? status : { ...status, actionError: outcome.error });
+  return NextResponse.json(await statusAfter(outcome, `Issued ${amount} to ${investor.label}.`));
 }

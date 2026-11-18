@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeskStatus, IssueBondInput, IssueEvent, IssueStepId, StepStatus } from "~~/types/ats";
+import type {
+  ActionResult,
+  AttackType,
+  DeskStatus,
+  IssueBondInput,
+  IssueEvent,
+  IssueStepId,
+  StepStatus,
+} from "~~/types/ats";
 import { readNdjsonStream } from "~~/utils/ats/ndjson";
 
 export type StepState = { status: StepStatus; error?: string; detail?: string };
@@ -172,6 +180,26 @@ export function useBondDesk() {
     }
   }, []);
 
+  /**
+   * The tour's way in: one action at a time across the page, keyed so its button shows the spinner, and resolving to
+   * the action's own outcome rather than leaving the page to dig it out of the activity log.
+   */
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const act = useCallback(async (key: string, url: string, body: unknown = {}): Promise<ActionResult> => {
+    setBusyKey(key);
+    try {
+      const data = await postJson<DeskStatus>(url, body);
+      if (mounted.current) setStatus(data);
+      return data.actionResult ?? { ok: true, result: "SUCCESS", message: "" };
+    } catch (error) {
+      return { ok: false, result: "Error", message: error instanceof Error ? error.message : String(error) };
+    } finally {
+      if (mounted.current) setBusyKey(null);
+    }
+  }, []);
+
+  const attack = useCallback((type: AttackType) => act(type, "/api/hedera/bond/attack", { type }), [act]);
+
   const logActivity = useCallback(async (action: string, result: string, txHash?: string) => {
     const data = await postJson<DeskStatus>("/api/hedera/bond/activity", { action, result, txHash });
     if (mounted.current) setStatus(data);
@@ -195,5 +223,9 @@ export function useBondDesk() {
     addingWallet,
     addWalletInvestor,
     logActivity,
+    busyKey,
+    act,
+    attack,
   };
 }
+export type BondDesk = ReturnType<typeof useBondDesk>;
