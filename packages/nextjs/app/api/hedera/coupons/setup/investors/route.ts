@@ -6,8 +6,8 @@ import { DemoInvestor, getDeskState, setInvestors } from "~~/services/coupons/st
 /**
  * Creates the two demo investors: Hedera accounts with ECDSA keys, an EVM address derived from
  * the public key, and unlimited automatic token associations so they can receive the stablecoin
- * without signing anything. Each demo key is discarded once the account exists -- it is never
- * needed again, and never leaves this function. Idempotent.
+ * without signing anything. Each key stays in server memory, where only the tour's attacks use it:
+ * no response ever includes it. Idempotent.
  */
 export async function POST() {
   const configError = getOperatorConfigError();
@@ -36,6 +36,7 @@ export async function POST() {
       const accountId = receipt.accountId;
       if (!accountId) throw new Error(`Account creation for ${spec.label} did not return an account id`);
 
+      getDeskState().investorKeys[spec.id] = key.toStringRaw();
       const evmAddress = key.publicKey.toEvmAddress();
       investors.push({
         id: spec.id,

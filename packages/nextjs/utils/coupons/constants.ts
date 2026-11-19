@@ -25,3 +25,6 @@ export const MIRROR_BASE: Record<string, string> = {
 };
 
 export const HEDERA_TESTNET_CHAIN_ID = 296;
+
+/** Units Investor B tries to give itself in the tour's attack. */
+export const GREEDY_UNITS = 1000;

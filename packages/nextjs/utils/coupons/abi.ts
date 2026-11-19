@@ -258,6 +258,9 @@ export const couponBondAbi = [
   { type: "error", name: "TransferFailed", inputs: [] },
   { type: "error", name: "AssociateFailed", inputs: [{ name: "responseCode", type: "uint256" }] },
   { type: "error", name: "DeleteScheduleFailed", inputs: [{ name: "responseCode", type: "int64" }] },
+  { type: "error", name: "NothingToClaim", inputs: [] },
+  // OpenZeppelin's Ownable, which guards every issuer-only function.
+  { type: "error", name: "OwnableUnauthorizedAccount", inputs: [{ name: "account", type: "address" }] },
 ] as const;
 
 /** Bond status enum, matching `CouponBond.Status`. */

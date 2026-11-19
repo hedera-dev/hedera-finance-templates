@@ -61,14 +61,18 @@ export function getHederaClient(): Client {
   return cachedHederaClient;
 }
 
-let cachedWalletClient: ReturnType<typeof createWalletClient> | undefined;
+/** viem wallet client signing with a raw ECDSA hex key, for contract calls. */
+export function walletClientFor(rawHex: string) {
+  const account = privateKeyToAccount(`0x${rawHex}`);
+  return createWalletClient({ account, chain: hederaTestnet, transport: http(RPC_URL) });
+}
+
+let cachedWalletClient: ReturnType<typeof walletClientFor> | undefined;
 /** viem wallet client signing with the operator's ECDSA key, for contract calls. */
 export function getOperatorWalletClient() {
   if (cachedWalletClient) return cachedWalletClient;
   requireConfigured();
-  const rawHex = normalizeEcdsaHex(process.env.HEDERA_OPERATOR_KEY as string) as string;
-  const account = privateKeyToAccount(`0x${rawHex}`);
-  cachedWalletClient = createWalletClient({ account, chain: hederaTestnet, transport: http(RPC_URL) });
+  cachedWalletClient = walletClientFor(normalizeEcdsaHex(process.env.HEDERA_OPERATOR_KEY as string) as string);
   return cachedWalletClient;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { DemoInvestor, Stablecoin } from "~~/services/coupons/state";
+import type { DemoInvestor, Stablecoin, TourBonds } from "~~/services/coupons/state";
 
 // Re-exported as types only: this file never imports server code, just shapes.
 
@@ -11,6 +11,7 @@ export type DeskStateResponse = {
   stablecoin: Stablecoin | null;
   investors: DemoInvestor[];
   currentBond: `0x${string}` | null;
+  tourBonds: TourBonds;
 };
 
 /** Polls desk-wide state: factory address, config health, the stablecoin, investors, current bond. */

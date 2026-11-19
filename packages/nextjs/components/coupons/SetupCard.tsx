@@ -25,7 +25,16 @@ function StepRow({ id, label, step }: { id: string; label: string; step: Step })
   );
 }
 
-export function SetupCard({ desk, onDone }: { desk: DeskStateResponse | undefined; onDone: () => void }) {
+export function SetupCard({
+  desk,
+  onDone,
+  step,
+}: {
+  desk: DeskStateResponse | undefined;
+  onDone: () => void;
+  /** Set by the tour, where this card is the step's action. */
+  step?: { label: string; title: string };
+}) {
   const [stablecoinStep, setStablecoinStep] = useState<Step>(idle);
   const [investorsStep, setInvestorsStep] = useState<Step>(idle);
 
@@ -67,10 +76,11 @@ export function SetupCard({ desk, onDone }: { desk: DeskStateResponse | undefine
   };
 
   return (
-    <div className="card bg-base-100 shadow border border-base-300">
-      <div className="card-body gap-2 !p-4">
+    <div className={`card bg-base-100 shadow ${step ? "border-2 border-primary" : "border border-base-300"}`}>
+      <div className={`card-body gap-2 ${step ? "!p-6" : "!p-4"}`}>
         <div>
-          <h3 className="card-title text-base">Set up desk</h3>
+          {step ? <p className="m-0 text-xs uppercase tracking-wide text-base-content/60">{step.label}</p> : null}
+          <h3 className={`card-title ${step ? "text-xl" : "text-base"}`}>{step?.title ?? "Set up desk"}</h3>
           {!(stablecoinStep.status === "done" && investorsStep.status === "done") && (
             <p className="text-sm text-base-content/70 m-0">
               Creates the stablecoin coupons are paid in and the two demo investors who will hold positions.
