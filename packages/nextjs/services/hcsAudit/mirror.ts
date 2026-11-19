@@ -19,8 +19,11 @@ type MirrorTopicMessagesResponse = {
   links?: { next?: string | null };
 };
 
+/** Long enough for a slow mirror node; short enough that a request it never answers cannot stall a poll for good. */
+const MIRROR_TIMEOUT_MS = 15_000;
+
 async function fetchJson<T>(url: string): Promise<T | null> {
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(MIRROR_TIMEOUT_MS) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Mirror node request failed (${res.status}): ${url}`);
   return (await res.json()) as T;

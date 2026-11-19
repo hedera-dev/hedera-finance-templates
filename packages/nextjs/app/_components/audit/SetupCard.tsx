@@ -39,6 +39,8 @@ type SetupCardProps = {
   setupRunning: boolean;
   setupError: string | null;
   onRunSetup: () => void;
+  /** Set by the tour, where this card is the step's action. */
+  step?: { label: string; title: string };
 };
 
 export const SetupCard = ({
@@ -49,17 +51,21 @@ export const SetupCard = ({
   setupRunning,
   setupError,
   onRunSetup,
+  step,
 }: SetupCardProps) => {
   const alreadySetUp = Boolean(desk?.topicId);
 
   return (
-    <div className="bg-base-100 rounded-2xl shadow-md p-6 border border-base-300">
+    <div
+      className={`bg-base-100 rounded-2xl shadow-md p-6 ${step ? "border-2 border-primary" : "border border-base-300"}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="font-bold text-xl m-0">Set up the audit trail</h2>
+          {step ? <p className="m-0 text-xs uppercase tracking-wide text-base-content/60">{step.label}</p> : null}
+          <h2 className="font-bold text-xl m-0">{step?.title ?? "Set up the audit trail"}</h2>
           <p className="text-sm text-base-content/70 mt-1 mb-0 max-w-xl">
-            The issuer pays for everything; the whole setup costs a few cents of testnet HBAR. Running it again starts a
-            fresh trail on a brand-new topic and token.
+            The issuer pays for everything: about 21 testnet HBAR, 18 of it the network&apos;s fee for creating a token.
+            Running it again starts a fresh trail on a brand-new topic and token.
           </p>
         </div>
         <button
