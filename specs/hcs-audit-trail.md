@@ -197,8 +197,10 @@ document cannot be recorded twice as two decisions.
 An error from either card appears under the card that was pressed, and not under
 the other one.
 
-**The regulator feed.** `/regulator` has a topic input `#regulator-topic`,
-pre-filled from the `topic` query parameter. Below it:
+**The regulator feed.** The header links to it as `Regulator`, on every page.
+`/regulator` has a topic input `#regulator-topic`, pre-filled from the `topic`
+query parameter; without one, from the topic the desk last showed in this
+browser, kept in the browser's own storage rather than on the server. Below it:
 
 - `#feed-status` — exactly one of `VERIFIED`, `BROKEN` or `EMPTY`, and when
   `BROKEN`, the first entry that failed and why

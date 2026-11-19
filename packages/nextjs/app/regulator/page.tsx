@@ -6,6 +6,7 @@ import type { NextPage } from "next";
 import { DocumentCheck } from "~~/app/regulator/_components/DocumentCheck";
 import { FeedTable } from "~~/app/regulator/_components/FeedTable";
 import { useRegulatorFeed } from "~~/hooks/hcsAudit/useRegulatorFeed";
+import { lastTopic } from "~~/services/hcsAudit/lastTopic";
 
 const RegulatorContent = () => {
   const searchParams = useSearchParams();
@@ -15,6 +16,8 @@ const RegulatorContent = () => {
   useEffect(() => {
     const fromQuery = searchParams.get("topic");
     if (fromQuery) setTopic(fromQuery);
+    // Opened from the header, with no topic named: the one the desk last showed in this browser.
+    else setTopic(current => current || (lastTopic() ?? ""));
   }, [searchParams]);
 
   const { result, error } = useRegulatorFeed(topic || null);

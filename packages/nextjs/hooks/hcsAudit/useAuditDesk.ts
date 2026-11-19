@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { rememberTopic } from "~~/services/hcsAudit/lastTopic";
 import type {
   AuditEntry,
   BusyRecord,
@@ -77,6 +78,11 @@ export function useAuditDesk() {
   useEffect(() => {
     refreshDesk();
   }, [refreshDesk]);
+
+  const topicId = desk?.topicId;
+  useEffect(() => {
+    if (topicId) rememberTopic(topicId);
+  }, [topicId]);
 
   const runSetup = useCallback(async () => {
     setSetupRunning(true);
