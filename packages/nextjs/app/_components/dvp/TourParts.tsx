@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import NextLink from "next/link";
 import { HashScanLink } from "./HashScanLink";
 import type { MarketSnapshot, PartySnapshot, TradeSnapshot } from "~~/services/hedera/types";
 
@@ -175,6 +176,9 @@ export function MarketStrip({ market }: { market: MarketSnapshot }) {
               Audit topic <HashScanLink hederaId={market.auditTopicId} kind="topic" />
             </span>
           ) : null}
+          <NextLink id="strip-own-wallet" href="/?view=sandbox&signing=hashpack" className="link normal-case text-sm">
+            Sign with your own wallet (HashPack)
+          </NextLink>
         </div>
         <div className="flex flex-wrap gap-2" aria-label="Balances">
           <PartyBadge name="Seller" party={market.seller} />

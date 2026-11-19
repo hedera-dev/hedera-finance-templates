@@ -39,7 +39,9 @@ section.
 
 Once the market exists, `#market-strip` stays above every step: both token ids
 and the audit topic id linked to HashScan, and each party's security and
-stablecoin balance, the Unverified Buyer marked `no KYC`.
+stablecoin balance, the Unverified Buyer marked `no KYC`. It also holds
+`#strip-own-wallet`, labelled `Sign with your own wallet (HashPack)`, which opens
+`/?view=sandbox&signing=hashpack`: the Sandbox with `HashPack` already chosen.
 
 1. **Set up** — the Setup section below, with who is who and what setup costs
    (about 48 testnet HBAR, most of it the fee for creating two tokens).
@@ -175,7 +177,8 @@ HashPack mode — `#your-turn` says so in a sentence naming the trade, next to
 that trade's `Sign as Buyer` control.
 
 **Signing with HashPack.** A signing-mode switch `#signing-mode` offers
-`Demo accounts` (the default) and `HashPack`. In HashPack mode the page shows:
+`Demo accounts` (the default) and `HashPack`; `?signing=hashpack` in the address
+starts it on `HashPack`. In HashPack mode the page shows:
 
 - `#connect-hashpack` — labelled `Connect HashPack`; once connected it offers
   disconnecting instead

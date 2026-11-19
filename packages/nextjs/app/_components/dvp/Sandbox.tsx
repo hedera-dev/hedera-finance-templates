@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuditLog } from "~~/app/_components/dvp/AuditLog";
 import { HashScanLink } from "~~/app/_components/dvp/HashScanLink";
 import { SetupPanel } from "~~/app/_components/dvp/SetupPanel";
@@ -32,7 +33,10 @@ function errorMessage(e: unknown): string {
 export const Sandbox = () => {
   const { market, setMarket, auditEntries, auditTopicId, configLoaded, operatorConfigured } = useMarket();
 
-  const [signingMode, setSigningMode] = useState<SigningMode>("demo");
+  // `?signing=hashpack` is how the tour's "Sign with your own wallet" link lands here with HashPack chosen.
+  const [signingMode, setSigningMode] = useState<SigningMode>(
+    useSearchParams().get("signing") === "hashpack" ? "hashpack" : "demo",
+  );
   const [walletRole, setWalletRole] = useState<WalletRole>("seller");
 
   const [busyPropose, setBusyPropose] = useState(false);
