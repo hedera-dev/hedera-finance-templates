@@ -188,3 +188,9 @@ export async function completeOnboardWallet(
   });
   return market;
 }
+
+export type AttackResponse = { ok: boolean; result: string; transaction: string | null; market: MarketSnapshot };
+
+export function runAttack(type: string): Promise<AttackResponse> {
+  return postJson<AttackResponse>("/api/hedera/dvp/attack", { type });
+}

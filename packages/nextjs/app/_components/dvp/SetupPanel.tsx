@@ -33,6 +33,8 @@ type Props = {
   configLoaded: boolean;
   operatorConfigured: boolean;
   onMarket: (market: MarketSnapshot) => void;
+  /** Set when the panel is a step of the tour: a line above the title, and the step's highlight. */
+  step?: { label: string; title: string };
 };
 
 /**
@@ -40,7 +42,7 @@ type Props = {
  * and the ids it created on finished ones, a cross on a failure. What each step does sits in a
  * collapsed section, so the button and the progress stay on screen.
  */
-export const SetupPanel = ({ configLoaded, operatorConfigured, onMarket }: Props) => {
+export const SetupPanel = ({ configLoaded, operatorConfigured, onMarket, step }: Props) => {
   const [progress, setProgress] = useState<Progress>(idle);
   const [busy, setBusy] = useState(false);
 
@@ -65,13 +67,17 @@ export const SetupPanel = ({ configLoaded, operatorConfigured, onMarket }: Props
   };
 
   return (
-    <section className="card bg-base-100 shadow-md border border-base-300 p-6 w-full gap-4">
+    <section
+      className={`card bg-base-100 shadow-md p-6 w-full gap-4 ${step ? "border-2 border-primary" : "border border-base-300"}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1 min-w-0 flex-1">
-          <h2 className="font-bold text-lg m-0">Setup</h2>
+          {step && <p className="m-0 text-xs uppercase tracking-wide text-base-content/60">{step.label}</p>}
+          <h2 className={`font-bold m-0 ${step ? "text-xl" : "text-lg"}`}>{step?.title ?? "Setup"}</h2>
           <span className="text-sm text-base-content/70">
             Creates two tokens and three demo accounts on testnet, signed and paid for by your operator account. About a
-            minute and roughly 31 HBAR; running it again starts a fresh market.
+            minute and roughly 48 testnet HBAR, 36 of it the network&apos;s dollar-priced fee for creating two tokens.
+            Running it again starts a fresh market.
           </span>
         </div>
         <button

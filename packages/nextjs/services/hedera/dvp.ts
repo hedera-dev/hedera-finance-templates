@@ -103,6 +103,7 @@ async function buildSnapshot(market: Market): Promise<MarketSnapshot> {
       expiresAt: t.expiresAt,
       settlesAt: t.settlesAt,
       proposedAt: t.proposedAt,
+      executedAt: t.executedAt ?? null,
     })),
   };
 }
@@ -535,6 +536,7 @@ async function finalizeTrade(trade: Trade, client: Client, market: Market): Prom
     // Even on REJECTED no balance moved, but the schedule's execution is itself a mirror-indexed
     // transaction; waiting for it keeps the snapshot we're about to build from going stale.
     await waitForMirrorIndexing(trade.scheduledTransactionId);
+    trade.executedAt = (await fetchScheduleInfo(trade.scheduleId).catch(() => null))?.executedTimestamp ?? undefined;
     await publishAuditEvent(client, market, {
       event: status === "SETTLED" ? "settled" : "rejected",
       schedule: trade.scheduleId,

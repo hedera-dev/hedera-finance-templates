@@ -79,6 +79,8 @@ export type Trade = {
   settlesAt: string | null;
   /** ISO timestamp the trade was proposed at. */
   proposedAt: string;
+  /** Mirror node "seconds.nanos" consensus time of the schedule's execution, settled or rejected. */
+  executedAt?: string;
   /** Internal: claims this trade for one in-flight settlement, so a race never finalizes it twice. */
   finalizing?: boolean;
 };
