@@ -144,7 +144,14 @@ sets the status to `STOPPED`; no further coupon is paid.
 
 **The bond pays for its own schedules.** With `scheduleCall`, the calling
 contract is the payer of the scheduled execution, so the bond needs HBAR. The
-desk shows how much and `Fund bond` sends it.
+desk shows how much and `Fund bond` sends it. How much is each remaining
+coupon's gas limit at the network's current gas price, not a fixed amount, so
+the figure stays right when fees change.
+
+**A coupon gets the gas it costs.** Each scheduled `payCoupon()` is given
+enough gas to pay every holder and schedule the next coupon. Too little, and
+the reschedule at the end runs out of gas, the whole coupon reverts, and the
+consumed schedule is never replaced.
 
 **Private keys never reach the browser.** No response the server sends contains
 the operator key or a demo investor's key.

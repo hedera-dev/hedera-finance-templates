@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     CouponBondFactory: {
-      address: "0xf019b29f4cc202793c39f75c20b80efc00e6c1fd",
+      address: "0xf0ae8908dadcdaf1fad98e00501e0979d613c90c",
       abi: [
         {
           type: "function",
@@ -74,7 +74,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41819503,
+      deployedOnBlock: 43282063,
     },
   },
 } as const;

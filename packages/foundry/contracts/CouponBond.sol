@@ -28,8 +28,10 @@ contract CouponBond is Ownable, ReentrancyGuard {
     /// `hasScheduleCapacity` + `scheduleCall` pair -- HTS system-contract calls are far pricier
     /// than ordinary EVM gas.
     uint256 public constant COUPON_GAS_BASE = 2_000_000;
-    /// Extra gas per holder, covering that holder's HTS ERC-20 `transfer`.
-    uint256 public constant COUPON_GAS_PER_HOLDER = 150_000;
+    /// Extra gas per holder, covering that holder's HTS ERC-20 `transfer`, which measures ~720k gas
+    /// on testnet. Too little and the reschedule at the end of `payCoupon()` runs out of gas, the
+    /// whole coupon reverts, and the consumed schedule is never replaced.
+    uint256 public constant COUPON_GAS_PER_HOLDER = 750_000;
     /// Seconds added to a schedule's requested expiry over its nominal due time; see `_schedule`.
     uint256 public constant SCHEDULE_FIRING_MARGIN = 3;
     int64 private constant HSS_SUCCESS = 22;
