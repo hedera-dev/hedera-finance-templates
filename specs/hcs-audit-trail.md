@@ -27,6 +27,57 @@ Three parties:
 
 ## What a user sees
 
+**Two views.** The title and a short explanation span the top of `/`, beside a
+`Hedera testnet` badge and a Tour / Sandbox toggle (`#view-tour`,
+`#view-sandbox`). `/` is the tour; `/?view=sandbox` is every control on one
+page, as described from **An explanation** on. Both act on the same desk, and
+`/regulator` is unchanged.
+
+**The tour** walks the desk one step at a time. `#tour-progress` shows six
+steps — `Set up`, `Refuse`, `Approve`, `Decide`, `Break it`, `Verify` — with
+finished ones ticked and the current one highlighted. The step follows the
+trail on the topic, not the tab: before setup it is `Set up`; until the trail
+holds a refused `transfer` or a successful `grant_kyc` for the holder it is
+`Refuse`; until it holds that `grant_kyc` it is `Approve`; until it holds a
+decision it is `Decide`; after that the reader moves freely between `Break it`
+and `Verify` from the stepper. Each step fits a 1440×900 window, with the
+step's action in a highlighted card and the exact calls in a collapsed "Under
+the hood" section. After an action, its step says what was logged and waits
+for the mirror node to show the entry before moving on.
+
+Once set up, `#desk-strip` stays above every step: the topic, token and holder
+ids linked to HashScan, the number of entries on the topic, and the holder's
+token balance, KYC and freeze status, all read from the mirror node. Beside
+each action step, "The trail" shows the newest entries, each with its `prev`
+checked in the browser against the hash of the message before it.
+
+1. **Set up** — the Setup section below, with who is who.
+2. **Refuse** — `#tour-transfer`, labelled `Transfer and log it`, transfers
+   `100` tokens to the holder before KYC. The network refuses it with
+   `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`, and the refusal is logged.
+3. **Approve** — `#tour-reason`, the reason published with the entry,
+   pre-filled, and `#tour-grant-kyc`, labelled `Grant KYC and log it`.
+4. **Decide** — a sanctions screening of the holder, `PASSED`, recorded off
+   chain: `#tour-authority`, pre-filled with the Issuer's account, and
+   `#tour-evidence`, pre-filled with the hash of a sample report the page
+   builds from the desk's ids, so it is the same after a reload.
+   `#tour-sample-document` downloads that report; choosing a file replaces it.
+   `#tour-decide`, labelled `Record the screening: PASSED`.
+5. **Break it** — an outsider account with no rights on the topic sends three
+   real transactions, each in its own card with what it tries, the call it
+   makes and its result: `#forge` submits a forged entry (`#forge-result`),
+   `#take-over` sets the topic's submit key to its own (`#take-over-result`),
+   `#delete-topic` deletes the topic (`#delete-topic-result`). A refusal shows
+   in red with the network's code and a link to the refused transaction on
+   HashScan; an accepted one in amber; one that cannot run says why in neutral
+   colours and does not count. A count says how many were tried and refused,
+   and `#next-verify` moves on.
+6. **Verify** — the regulator's checks, run in the page from the mirror node:
+   `#tour-feed-status` (`VERIFIED`, `BROKEN` or `EMPTY`), the number of entries
+   checked, and every entry with its three checks. `#tour-check-document`
+   hashes the sample report again and `#tour-document-verdict` names the entry
+   that carries it. `#tour-regulator-link` opens `/regulator` for the topic.
+
 **An explanation.** A short paragraph at the top of `/` says what the audit
 trail is, why an HCS topic with a submit key makes it tamper-evident, and that
 the regulator's feed needs nothing but the public mirror node.
@@ -233,6 +284,11 @@ rises by the amount; after `Freeze holder` a transfer is refused with
 **Only authorised publishers can write.** The forgery attempt is rejected by the
 network with `INVALID_SIGNATURE`, and the topic's message count does not change.
 
+**Only the Issuer can change or delete the topic.** The outsider's attempt to
+set the submit key to its own, and its attempt to delete the topic, are each
+refused with `INVALID_SIGNATURE`: both need the topic's admin key, which is the
+Issuer's. The topic keeps its submit key and is not deleted.
+
 **The regulator verifies, not trusts.** `/regulator` reads the topic only from
 the public mirror node — no server route of this app is involved, and no key or
 account. It decodes each message and checks:
@@ -305,7 +361,9 @@ display `undefined`, `NaN`, `null`, or an empty value while visible.
 
 ## How this will be checked
 
-1. Open `/`. Read the explanation and confirm `#setup-audit` is visible without
+Steps 1–10 use the Sandbox, `/?view=sandbox`; step 11 walks the tour.
+
+1. Open `/?view=sandbox`. Read the explanation and confirm `#setup-audit` is visible without
    scrolling and the "What each step does" section is closed.
 2. Press `#setup-audit`. Watch the four steps reach `done`. Read `#topic-id`,
    `#token-id` and `#holder-account-id`, and confirm on the mirror node: the
@@ -329,7 +387,7 @@ display `undefined`, `NaN`, `null`, or an empty value while visible.
    equals the topic's message count on the mirror node, and every row passes
    all three checks. For two entries, recompute the SHA-256 of the previous
    message's bytes from the mirror node and compare it with `prev`.
-8. With `/regulator` open, perform one more action on `/` and confirm the new
+8. With `/regulator` open, perform one more action in the Sandbox and confirm the new
    entry appears on `/regulator` without a reload.
 9. Inspect the responses `/` received during all of the above for any private
    key.
@@ -340,6 +398,15 @@ display `undefined`, `NaN`, `null`, or an empty value while visible.
     configured, confirm `#wallet-config-error` names
     `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID`. Switch back and confirm Issuer-mode
     actions work again.
+11. Restart the server, open `/` and walk the tour: `#setup-audit`,
+    `#tour-transfer`, `#tour-grant-kyc`, `#tour-decide`. Confirm the trail holds
+    `issue`, a `transfer` with `ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN`, a
+    `grant_kyc` carrying the reason, and a `sanctions_check` with no `tx`. Run
+    the three attacks and confirm each result reads `INVALID_SIGNATURE` with a
+    HashScan link to a transaction the mirror node reports with that result,
+    and that the topic still has four messages, its submit key, and is not
+    deleted. Confirm `#tour-feed-status` is `VERIFIED`, and that the report from
+    `#tour-sample-document`, chosen on `/regulator`, matches the decision.
 
 Completing a HashPack connection or signature is **not** checked: the checker
 has no HashPack wallet. It is still part of the feature and must be implemented
