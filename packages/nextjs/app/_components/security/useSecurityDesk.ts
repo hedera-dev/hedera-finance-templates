@@ -24,6 +24,16 @@ async function request(url: string, init?: RequestInit) {
   return data;
 }
 
+/** What the tour shows beside a button: the network's answer, and the transaction or schedule it came with. */
+export type TourResult = {
+  ok: boolean;
+  /** `SUCCESS`, the network's code, or `Error` when the request could not be carried out at all. */
+  result: string;
+  message: string;
+  transactionId?: string;
+  scheduleId?: string;
+};
+
 const postJson = (url: string, body: unknown = {}) =>
   request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
@@ -174,8 +184,36 @@ export function useSecurityDesk() {
     [withBusy, isConnected, chainId, transact],
   );
 
+  /**
+   * The tour's way in: one action at a time, keyed so its button shows the spinner, resolving to the action's own
+   * outcome rather than a message the page has to parse.
+   */
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const act = useCallback(async (key: string, url: string, body: unknown = {}): Promise<TourResult> => {
+    setBusyKey(key);
+    try {
+      const data = await postJson(url, body);
+      if (data.state) setState(data.state);
+      const outcome = (data.result ?? {}) as { result?: string; transactionId?: string; scheduleId?: string };
+      const result = outcome.result ?? "SUCCESS";
+      return {
+        ok: result === "SUCCESS",
+        result,
+        message: "",
+        transactionId: outcome.transactionId,
+        scheduleId: outcome.scheduleId,
+      };
+    } catch (error) {
+      return { ok: false, result: "Error", message: error instanceof Error ? error.message : String(error) };
+    } finally {
+      setBusyKey(null);
+    }
+  }, []);
+
   return {
     state,
+    busyKey,
+    act,
     setupSteps,
     isSettingUp,
     busy,
@@ -188,3 +226,5 @@ export function useSecurityDesk() {
     approveAsWallet,
   };
 }
+
+export type SecurityDeskHook = ReturnType<typeof useSecurityDesk>;

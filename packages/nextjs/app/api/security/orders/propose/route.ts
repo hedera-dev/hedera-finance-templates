@@ -24,9 +24,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    await proposeOrder(action as OrderAction, holderId, reference);
+    const pending = await proposeOrder(action as OrderAction, holderId, reference);
     const state = await buildDeskStateView();
-    return NextResponse.json({ ok: true, state });
+    return NextResponse.json({ ok: true, result: { result: "SUCCESS", scheduleId: pending.scheduleId }, state });
   } catch (error) {
     return errorResponse(error);
   }

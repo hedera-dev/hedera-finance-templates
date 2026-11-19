@@ -619,4 +619,4 @@ function countOfficerSignatures(prefixesHex: string[]): number {
   return countDistinctSigners(officerKeys, prefixesHex);
 }
 
-export { actionLabel };
+export { actionLabel, buildInnerTransaction, statusCodeOf };
