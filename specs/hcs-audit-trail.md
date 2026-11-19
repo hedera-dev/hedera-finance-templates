@@ -289,6 +289,10 @@ set the submit key to its own, and its attempt to delete the topic, are each
 refused with `INVALID_SIGNATURE`: both need the topic's admin key, which is the
 Issuer's. The topic keeps its submit key and is not deleted.
 
+**A mirror node that does not answer does not stop the page.** A request to the
+mirror node gives up after 15 seconds, so the trail, the feed and the tour keep
+polling instead of waiting forever on one request.
+
 **The regulator verifies, not trusts.** `/regulator` reads the topic only from
 the public mirror node — no server route of this app is involved, and no key or
 account. It decodes each message and checks:
