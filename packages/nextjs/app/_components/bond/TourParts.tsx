@@ -181,14 +181,15 @@ export function BondStrip({ bond, investors }: { bond: BondTerms; investors: Inv
             </span>
             <span className="text-sm text-base-content/70">matures {formatDate(bond.maturityDateIso)}</span>
           </div>
-          <div className="flex flex-wrap gap-2 items-center" aria-label="Allowlist">
-            <span className="text-xs uppercase tracking-wide text-base-content/60">Allowlist</span>
+          <div className="flex flex-wrap gap-2 items-center" aria-label="Allowlist and holdings">
+            <span className="text-xs uppercase tracking-wide text-base-content/60">Allowlist · holds</span>
             {investors.map(investor => (
               <span
                 key={investor.address}
                 className={`badge ${investor.approved ? "badge-success" : investor.approved === null ? "badge-warning" : "badge-ghost"}`}
               >
-                {investor.approved ? "✓" : investor.approved === null ? "?" : "✕"} {investor.label}
+                {investor.approved ? "✓" : investor.approved === null ? "?" : "✕"} {investor.label} ·{" "}
+                <strong>{investor.balance === null ? "?" : formatNumber(investor.balance)}</strong>
               </span>
             ))}
           </div>

@@ -37,7 +37,7 @@ collapsed "Under the hood" section.
 Once a bond exists, `#bond-strip` stays above every step: symbol, ISIN, face
 value, the Hedera contract id linked to HashScan, `#strip-issued` of the maximum
 supply with a bar, the maturity date, and a badge per investor saying whether it
-is on the allowlist.
+is on the allowlist and how many bonds it holds.
 
 1. **Issue** — the issue form below. While issuing, the progress checklist sits
    in the side column instead of the list of what comes next.
@@ -58,8 +58,9 @@ is on the allowlist.
    in red with the decoded error and a link to the reverted transaction on
    HashScan. An acceptance shows in amber, saying something is broken. A count
    says how many were tried and refused, and `#next-manage` moves on.
-5. **Manage the list** — the investor rows below, with collapsed sections for
-   the wallet investor, the activity log and issuing a fresh bond.
+5. **Manage the list** — the investor rows below, the wallet investor card
+   beside them, and collapsed sections for the activity log and issuing a fresh
+   bond.
 
 **The sandbox** keeps the original layout: on a window at least 1024px wide,
 two columns scroll together with the page: what the learner *does* on the left

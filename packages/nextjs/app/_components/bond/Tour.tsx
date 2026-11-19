@@ -452,19 +452,14 @@ function ManageScreen({ ctx }: { ctx: Ctx }) {
       aside={
         <>
           {/* The rows beside this already show who is approved and what each holds, so no picture here. */}
-          <details className="card bg-base-100 border border-base-300 shadow-sm">
-            <summary className="cursor-pointer p-5 font-semibold">Hold it in your own wallet</summary>
-            <div className="px-1 pb-1">
-              <WalletInvestorCard
-                bondAddress={status.bond?.address ?? null}
-                investors={status.investors}
-                addingWallet={desk.addingWallet}
-                onAddWalletInvestor={desk.addWalletInvestor}
-                onLogActivity={desk.logActivity}
-                onTransferred={desk.refreshStatus}
-              />
-            </div>
-          </details>
+          <WalletInvestorCard
+            bondAddress={status.bond?.address ?? null}
+            investors={status.investors}
+            addingWallet={desk.addingWallet}
+            onAddWalletInvestor={desk.addWalletInvestor}
+            onLogActivity={desk.logActivity}
+            onTransferred={desk.refreshStatus}
+          />
           <details className="card bg-base-100 border border-base-300 shadow-sm">
             <summary className="cursor-pointer p-5 font-semibold">
               History · {status.activity.length} {status.activity.length === 1 ? "action" : "actions"}
