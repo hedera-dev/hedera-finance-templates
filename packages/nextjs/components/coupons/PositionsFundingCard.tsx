@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { hederaTestnet } from "viem/chains";
-import { useReadContract } from "wagmi";
+import { useGasPrice, useReadContract } from "wagmi";
 import type { BondData } from "~~/hooks/coupons/useBond";
 import { useMirrorAccount } from "~~/hooks/coupons/useMirrorAccount";
 import type { DemoInvestor, Stablecoin } from "~~/services/coupons/state";
 import { couponBondAbi } from "~~/utils/coupons/abi";
-import { HBAR_RESERVE_PER_COUPON } from "~~/utils/coupons/constants";
+import { hbarNeededFor } from "~~/utils/coupons/constants";
 import { wholeNumberText } from "~~/utils/coupons/numberField";
 import { getBlockExplorerAddressLink } from "~~/utils/scaffold-hbar";
 
@@ -201,6 +201,7 @@ export function PositionsFundingCard({
   }, [investors, walletInvestor]);
 
   const bondMirror = useMirrorAccount(bondAddress, stablecoin?.tokenId);
+  const { data: gasPrice } = useGasPrice({ chainId: hederaTestnet.id });
   const [fundText, setFundText] = useState<string | null>(null);
   const [isFunding, setIsFunding] = useState(false);
   const [fundError, setFundError] = useState<string | null>(null);
@@ -217,11 +218,14 @@ export function PositionsFundingCard({
       : bond?.statusIndex === 1
         ? Number(bond.couponCount) - Number(bond.currentCoupon) + 1
         : 0;
-  const hbarNeeded = remainingCoupons * HBAR_RESERVE_PER_COUPON;
+  const hbarNeeded =
+    bond && gasPrice
+      ? Number(formatUnits(hbarNeededFor(BigInt(remainingCoupons), bond.holdersCount, gasPrice), 18))
+      : null;
   // null means the balance has not been read, which is not the same as holding none: the
   // card says so rather than showing a funded bond as empty.
   const hbarHeld = bond?.hbarBalance != null ? Number(formatUnits(bond.hbarBalance, 18)) : null;
-  const hbarMissing = hbarHeld === null ? null : Math.max(0, hbarNeeded - hbarHeld);
+  const hbarMissing = hbarHeld === null || hbarNeeded === null ? null : Math.max(0, hbarNeeded - hbarHeld);
 
   const fundField = fundText ?? String(stablecoinMissingWhole);
   const fundWhole = fundField === "" ? null : Math.max(0, Math.round(Number(fundField)));

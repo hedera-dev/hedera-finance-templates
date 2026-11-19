@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { parseEther } from "viem";
 import { hederaTestnet } from "viem/chains";
 import {
   callBond,
@@ -9,7 +8,7 @@ import {
 } from "~~/services/coupons/operator";
 import { getDeskState, requireKnownBond } from "~~/services/coupons/state";
 import { couponBondAbi, erc20Abi } from "~~/utils/coupons/abi";
-import { HBAR_RESERVE_PER_COUPON, MAX_FUNDING_WHOLE } from "~~/utils/coupons/constants";
+import { MAX_FUNDING_WHOLE, hbarNeededFor } from "~~/utils/coupons/constants";
 
 /**
  * Sends the bond the stablecoin it still needs plus whatever HBAR it is still missing to pay
@@ -49,17 +48,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ address
     const publicClient = getServerPublicClient();
     const walletClient = getOperatorWalletClient();
 
-    const [status, couponCount, currentCoupon, nativeBalance] = await Promise.all([
+    const [status, couponCount, currentCoupon, holdersCount, nativeBalance, gasPrice] = await Promise.all([
       publicClient.readContract({ address: bondAddress, abi: couponBondAbi, functionName: "status" }),
       publicClient.readContract({ address: bondAddress, abi: couponBondAbi, functionName: "couponCount" }),
       publicClient.readContract({ address: bondAddress, abi: couponBondAbi, functionName: "currentCoupon" }),
+      publicClient.readContract({ address: bondAddress, abi: couponBondAbi, functionName: "holdersCount" }),
       publicClient.getBalance({ address: bondAddress }),
+      publicClient.getGasPrice(),
     ]);
 
     // CREATED (0): every coupon is still ahead. RUNNING (1): from the current one onward.
     // MATURED/STOPPED: nothing more is ever paid, so nothing more is needed.
     const remainingCoupons = status === 0 ? couponCount : status === 1 ? couponCount - currentCoupon + 1n : 0n;
-    const hbarNeeded = parseEther((Number(remainingCoupons) * HBAR_RESERVE_PER_COUPON).toString());
+    const hbarNeeded = hbarNeededFor(remainingCoupons, Number(holdersCount), gasPrice);
     const hbarShortfall = hbarNeeded > nativeBalance ? hbarNeeded - nativeBalance : 0n;
 
     const txHashes: `0x${string}`[] = [];

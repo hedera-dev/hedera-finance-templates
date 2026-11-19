@@ -19,6 +19,57 @@ Parties:
 
 ## What a user sees
 
+**Two views.** The title and the explanation below span the top, beside a
+`Hedera testnet` badge and a Tour / Sandbox toggle (`#view-tour`,
+`#view-sandbox`). `/` is the tour; `/?view=sandbox` is every control on one
+page, as described from **Layout** on. Both act on the same desk.
+
+**The tour** walks the desk one step at a time. `#tour-progress` shows six
+steps — `Set up`, `Issue`, `Fund`, `Start`, `Break it`, `Miss a coupon` — with
+finished ones ticked and the current one highlighted. The step follows the
+tour's bond on chain, not the tab: before setup it is `Set up`; until the tour
+has issued its bond it is `Issue`; while that bond has no positions, or lacks
+the HBAR its schedules need, it is `Fund`; once funded, and while it runs, it
+is `Start`; once it has matured the reader moves freely between `Break it` and
+`Miss a coupon` from the stepper. Each step fits a 1440×900 window, with the
+step's action in a highlighted card and the exact calls in a collapsed "Under
+the hood" section. Amounts in the tour's text come from the bond's terms, the
+investors' positions and the network's gas price, never from fixed copy.
+
+Once the desk is set up, `#desk-strip` stays above every step: the stablecoin,
+the factory and the bond in view linked to HashScan, each demo investor's
+stablecoin balance, and the bond's status, stablecoin and HBAR.
+
+1. **Set up** — the Setup section below, with who is who.
+2. **Issue** — the terms are fixed so the bond matures in about two minutes:
+   face value `1000`, coupon `1`%, period `1` minute, `2` coupons.
+   `#tour-issue`, labelled `Issue bond`.
+3. **Fund** — `#tour-fund`, labelled `Allocate and fund`, allocates each demo
+   investor its default units (`10` and `5`), then sends the bond the
+   stablecoin every coupon and the principal need (`15300`) and the HBAR its
+   schedules need. A checklist ticks off the transactions as they land. Beside
+   it, the bond's terms read back from the contract.
+4. **Start** — `#tour-start`, labelled `Start coupons`. Then, with nobody
+   pressing anything, `#tour-next-coupon` names the coupon due next with its due
+   time and a countdown, and the coupon history fills in. When the bond
+   matures, that is announced above the next step with a link to the last
+   payment on HashScan.
+5. **Break it** — three attacks on the matured bond, each a real transaction,
+   in its own card with what it tries, the call it makes and its result:
+   `#pay-twice` has Investor A call `payCoupon()` again (`#pay-twice-result`);
+   `#investor-allocates` has Investor B call `allocate()` to give itself
+   `1000` units (`#investor-allocates-result`); `#issuer-reallocates` has the
+   issuer set Investor A's units to `0` (`#issuer-reallocates-result`). A
+   revert shows in red with the network's result, the bond's error and a link
+   to the reverted transaction; an accepted call shows in amber; an attack that
+   cannot run says why in neutral colours and does not count. A count says how
+   many were tried and reverted, and `#next-miss` moves on.
+6. **Miss a coupon** — `#tour-miss` issues a second bond on the same terms,
+   allocates `10` units to Investor A, funds one coupon (`100`) and starts it.
+   Coupon 1 is paid and coupon 2 is missed; `#tour-fund-rest` then sends what
+   is still owed, and the retry pays coupon 2 and the principal. `#to-sandbox`
+   opens the Sandbox, where the wallet investor and every other control live.
+
 **Layout.** The title and a short explanation span the top: what a coupon is,
 how they are usually paid (a paying agent, or a keeper network such as
 Chainlink Automation on other chains), and that here the bond schedules its own
@@ -144,7 +195,20 @@ sets the status to `STOPPED`; no further coupon is paid.
 
 **The bond pays for its own schedules.** With `scheduleCall`, the calling
 contract is the payer of the scheduled execution, so the bond needs HBAR. The
-desk shows how much and `Fund bond` sends it.
+desk shows how much and `Fund bond` sends it. How much is each remaining
+coupon's gas limit at the network's current gas price, not a fixed amount, so
+the figure stays right when fees change.
+
+**A coupon gets the gas it costs.** Each scheduled `payCoupon()` is given
+enough gas to pay every holder and schedule the next coupon. Too little, and
+the reschedule at the end runs out of gas, the whole coupon reverts, and the
+consumed schedule is never replaced.
+
+**Nobody rewrites a bond once it runs.** The tour's attacks reach the network
+and are reverted: `payCoupon()` on a matured bond with `NotRunning`,
+`allocate()` from an investor with `OwnableUnauthorizedAccount`, and
+`allocate()` from the issuer after `Start` with `NotCreated`. No balance
+changes.
 
 **Private keys never reach the browser.** No response the server sends contains
 the operator key or a demo investor's key.
@@ -155,7 +219,9 @@ cannot be pressed twice.
 
 ## How this will be checked
 
-1. Open `/` at 1024px or wider. Confirm the title on top, the two columns, and
+Steps 1–9 use the Sandbox, `/?view=sandbox`; step 10 walks the tour.
+
+1. Open `/?view=sandbox` at 1024px or wider. Confirm the title on top, the two columns, and
    `#factory-address` showing a factory that exists on the mirror node as a
    contract.
 2. Press `#setup-desk`; watch both steps reach `done`. Confirm the stablecoin
@@ -181,6 +247,15 @@ cannot be pressed twice.
    due time has passed, no coupon in `#coupons` and no balance change.
 8. Inspect the responses the page received for any private key.
 9. Without a wallet connected, confirm `#wallet-state` says to connect.
+10. Restart the server, open `/` and walk the tour: `#setup-desk`,
+    `#tour-issue`, `#tour-fund`, `#tour-start`. Without touching the page,
+    confirm the bond matures and `#desk-strip` shows Investor A at `10200` and
+    Investor B at `5100`. Run the three attacks and confirm each result reads
+    reverted — `NotRunning`, `OwnableUnauthorizedAccount`, `NotCreated` — with a
+    HashScan link to a transaction the mirror node reports as
+    `CONTRACT_REVERT_EXECUTED`, and that no balance in `#desk-strip` changed.
+    Then press `#tour-miss`; confirm coupon 2 `MISSED`, press
+    `#tour-fund-rest`, and confirm coupon 2 `PRINCIPAL REPAID`.
 
 Connecting MetaMask and signing with it is **not** checked: the checker has no
 MetaMask wallet. It is still part of the feature and must be implemented as

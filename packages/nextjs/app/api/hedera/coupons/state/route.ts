@@ -18,5 +18,6 @@ export async function GET() {
     stablecoin: state.stablecoin ?? null,
     investors: state.investors,
     currentBond: state.currentBond ?? null,
+    tourBonds: state.tourBonds,
   });
 }

@@ -18,18 +18,24 @@ export type Stablecoin = {
   symbol: string;
 };
 
+/** The bonds the tour issued, one per chapter, so its step follows the chain rather than the tab. */
+export type TourBonds = { main?: `0x${string}`; miss?: `0x${string}` };
+
 export type DeskState = {
   stablecoin?: Stablecoin;
   investors: DemoInvestor[];
+  /** Raw ECDSA hex by investor id, for the tour's attacks. Never sent to the browser. */
+  investorKeys: Partial<Record<DemoInvestor["id"], string>>;
   currentBond?: `0x${string}`;
   bonds: `0x${string}`[];
+  tourBonds: TourBonds;
 };
 
 const KEY = "__couponDeskState__" as const;
 
 export function getDeskState(): DeskState {
   const g = globalThis as unknown as Record<string, DeskState>;
-  if (!g[KEY]) g[KEY] = { investors: [], bonds: [] };
+  if (!g[KEY]) g[KEY] = { investors: [], investorKeys: {}, bonds: [], tourBonds: {} };
   return g[KEY];
 }
 
@@ -41,10 +47,11 @@ export function setInvestors(investors: DemoInvestor[]) {
   getDeskState().investors = investors;
 }
 
-export function setCurrentBond(address: `0x${string}`) {
+export function setCurrentBond(address: `0x${string}`, tourRole?: keyof TourBonds) {
   const state = getDeskState();
   state.currentBond = address;
   if (!isKnownBond(address)) state.bonds.push(address);
+  if (tourRole) state.tourBonds[tourRole] = address;
 }
 
 /** True for a bond this desk issued. Addresses from a URL are not otherwise trustworthy. */

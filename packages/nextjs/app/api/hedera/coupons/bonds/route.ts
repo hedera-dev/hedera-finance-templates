@@ -12,6 +12,8 @@ type IssueBondBody = {
   couponRatePercent: number;
   periodMinutes: number;
   couponCount: number;
+  /** Set by the tour, so its steps can follow this bond. */
+  tourRole?: "main" | "miss";
 };
 
 /** Issues a bond through the factory: `createBond(...)`, owned by the issuer (the operator). */
@@ -44,7 +46,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { name, faceValue, couponRatePercent, periodMinutes, couponCount } = body;
+  const { name, faceValue, couponRatePercent, periodMinutes, couponCount, tourRole } = body;
+  if (tourRole !== undefined && tourRole !== "main" && tourRole !== "miss") {
+    return NextResponse.json({ error: "tourRole must be main or miss" }, { status: 400 });
+  }
   if (!name?.trim()) return NextResponse.json({ error: "Bond name is required" }, { status: 400 });
   if (!Number.isInteger(faceValue) || faceValue <= 0) {
     return NextResponse.json({ error: "Face value must be a positive whole number" }, { status: 400 });
@@ -100,7 +105,7 @@ export async function POST(req: Request) {
     }
     if (!bondAddress) throw new Error("Bond creation transaction did not emit BondCreated");
 
-    setCurrentBond(bondAddress);
+    setCurrentBond(bondAddress, tourRole);
     return NextResponse.json({ address: bondAddress, txHash: hash });
   } catch (e) {
     console.error("[api/hedera/coupons/bonds]", e);

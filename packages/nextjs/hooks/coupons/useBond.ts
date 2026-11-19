@@ -51,7 +51,9 @@ export function useBond(address?: `0x${string}`) {
     query: { enabled: Boolean(address), refetchInterval: 4000 },
   });
 
+  // `refetch` ignores `enabled`: without an address it would send every read with no contract to read from.
   const refetchAll = () => {
+    if (!address) return;
     refetch();
     refetchBalance();
   };

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { parseEther } from "viem";
+import { hederaTestnet } from "viem/chains";
+import { useGasPrice } from "wagmi";
 import type { BondData } from "~~/hooks/coupons/useBond";
-import { HBAR_RESERVE_PER_COUPON } from "~~/utils/coupons/constants";
+import { hbarNeededFor } from "~~/utils/coupons/constants";
 
 type Props = {
   bondAddress?: `0x${string}`;
@@ -15,6 +16,7 @@ export function ScheduleControlsCard({ bondAddress, bond, onRefetchBond }: Props
   const [pending, setPending] = useState<"start" | "stop" | "pay-now" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const { data: gasPrice } = useGasPrice({ chainId: hederaTestnet.id });
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -38,8 +40,8 @@ export function ScheduleControlsCard({ bondAddress, bond, onRefetchBond }: Props
   };
 
   // "the bond holds HBAR for its schedules": before `start()`, that's every coupon ahead of it.
-  const hbarNeeded = bond ? parseEther((Number(bond.couponCount) * HBAR_RESERVE_PER_COUPON).toString()) : 0n;
-  const hbarKnown = bond?.hbarBalance !== null && bond?.hbarBalance !== undefined;
+  const hbarNeeded = bond && gasPrice ? hbarNeededFor(bond.couponCount, bond.holdersCount, gasPrice) : 0n;
+  const hbarKnown = bond?.hbarBalance !== null && bond?.hbarBalance !== undefined && gasPrice !== undefined;
   const canStart = bond?.status === "CREATED" && bond.holdersCount > 0 && hbarKnown && bond.hbarBalance! >= hbarNeeded;
   const canStop = bond?.status === "RUNNING";
   const isDue = bond ? now >= Number(bond.dueTime) * 1000 : false;

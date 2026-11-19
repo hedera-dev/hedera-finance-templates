@@ -11,7 +11,7 @@
  * skipped (exit 0) while script/DeployCouponFactory.s.sol does not exist yet.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,6 +60,8 @@ function operatorKey() {
 
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: foundryDir, stdio: "inherit" });
 
+// The deploy script records the address here; the folder is ignored by git, so a fresh clone has none.
+mkdirSync(join(foundryDir, "deployments"), { recursive: true });
 console.log("coupons:deploy: deploying CouponBondFactory to Hedera testnet…");
 run("forge", [
   "script", SCRIPT,
