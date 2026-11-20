@@ -1,45 +1,45 @@
-import type { PrivateKey, PublicKey } from "@hiero-ledger/sdk";
-
-export type OfficerId = "1" | "2" | "3";
-export type HolderId = "A" | "B";
-export type OrderAction = "freeze" | "unfreeze" | "wipe" | "pause" | "unpause";
+import type { Address, Hex } from "viem";
+import type { HolderId, OfficerId, OrderAction } from "~~/services/security/types";
 
 export type OfficerRecord = {
   id: OfficerId;
   isWallet: boolean;
-  /** Set only for a wallet officer — the account the mirror node reports the key for. */
+  address: Address;
+  /** Filled in once the mirror node has indexed the address; the page shows it when it has. */
   accountId: string | null;
-  publicKey: PublicKey;
   /** Null only for a wallet officer: the desk never holds a wallet's private key. */
-  privateKey: PrivateKey | null;
+  privateKey: Hex | null;
 };
 
 export type HolderRecord = {
   id: HolderId;
   label: string;
-  accountId: string;
+  address: Address;
+  accountId: string | null;
+  privateKey: Hex;
 };
 
 export type TokenRecord = {
-  tokenId: string;
+  address: Address;
+  contractId: string;
   symbol: string;
 };
 
-export type PendingApproval = {
-  /** A real Hedera `ScheduleId` (`0.0.<num>`) — see the comment atop `actions.ts` for what it schedules. */
-  scheduleId: string;
+export type BoardRecord = {
+  address: Address;
+  contractId: string;
+};
+
+export type PendingProposal = {
+  /** The board's proposal id, as a decimal string. */
+  proposalId: string;
   action: OrderAction;
   holderId: HolderId | null;
   reference: string;
   createdAtMs: number;
   expiresAtMs: number;
-  /**
-   * Set only while a wallet-officer approval is in flight: when the desk handed the browser the
-   * schedule-signing transaction. The wallet's signature is what executes the record schedule, so
-   * this is how the poll knows an executed schedule means "mid-handshake", not "order carried
-   * out". Cleared when that approval finishes, either way.
-   */
-  walletApprovalStartedAtMs?: number;
+  /** The transaction that proposed it, so the page can link the order to the ledger. */
+  proposeTxHash: string;
 };
 
 export type HistoryEntry = {
@@ -48,42 +48,46 @@ export type HistoryEntry = {
   action: string;
   reference: string | null;
   result: string;
-  transactionId: string;
-  /** Whether `transactionId` is a transaction id or a schedule id — HashScan needs different paths. */
-  linkKind: "transaction" | "schedule";
+  txHash: string;
+  /** What kind of step this was, so the tour can tell a proposal from the approval that carried it. */
+  kind: "propose" | "approve" | "withdraw" | "other";
 };
 
 type DeskState = {
   officers: OfficerRecord[];
   token: TokenRecord | null;
-  /** The account whose key is the 2-of-3 threshold KeyList, used only to carry schedules — see `actions.ts`. */
-  recordAccountId: string | null;
+  board: BoardRecord | null;
   holders: HolderRecord[];
-  pending: PendingApproval[];
+  pending: PendingProposal[];
   history: HistoryEntry[];
 };
 
 /**
- * Desk state lives in server memory, as the spec allows: officer and holder identities, the
- * token id, the record account id, pending orders, and case references. It is never the source
- * for anything the page claims about the chain (KYC, frozen state, balances, supply, pause
- * status, schedule signature counts) — the mirror node is, on every read.
+ * Desk state lives in server memory, as the spec allows: officer and holder identities, the token
+ * and board addresses, which order a proposal carries, and case references. It is never the source
+ * for anything the page claims about the chain — KYC, frozen state, balances, supply, the paused
+ * flag, who holds which role, how many officers have approved all come from the token and the
+ * board on every read.
  *
- * Anchored on `globalThis` because Next.js bundles each `app/api/.../route.ts` separately; a
- * plain module-level variable would not be shared across routes (or across dev-server reloads).
+ * Anchored on `globalThis` because Next.js bundles each `app/api/.../route.ts` separately; a plain
+ * module-level variable would not be shared across routes (or across dev-server reloads).
  */
 declare global {
   var __securityDeskState: DeskState | undefined;
 }
 
 function initialState(): DeskState {
-  return { officers: [], token: null, recordAccountId: null, holders: [], pending: [], history: [] };
+  return { officers: [], token: null, board: null, holders: [], pending: [], history: [] };
 }
 
 const state: DeskState = (globalThis.__securityDeskState ??= initialState());
 
 export function getDeskState(): DeskState {
   return state;
+}
+
+export function resetDesk() {
+  Object.assign(state, initialState());
 }
 
 export function setOfficers(officers: OfficerRecord[]) {
@@ -94,12 +98,29 @@ export function getOfficer(id: OfficerId): OfficerRecord | undefined {
   return state.officers.find(o => o.id === id);
 }
 
+/** An officer the desk can sign for, which is every officer but a wallet one. */
+export function requireSigningOfficer(id: OfficerId) {
+  const officer = getOfficer(id);
+  if (!officer?.privateKey) throw new Error(`Officer ${id} is not an officer this desk can sign for.`);
+  return { ...officer, privateKey: officer.privateKey };
+}
+
 export function setToken(token: TokenRecord) {
   state.token = token;
 }
 
-export function setRecordAccount(accountId: string) {
-  state.recordAccountId = accountId;
+export function requireToken(): TokenRecord {
+  if (!state.token) throw new Error("Set up the desk first: there is no token yet.");
+  return state.token;
+}
+
+export function setBoard(board: BoardRecord) {
+  state.board = board;
+}
+
+export function requireBoard(): BoardRecord {
+  if (!state.board) throw new Error("Set up the desk first: there is no officer board yet.");
+  return state.board;
 }
 
 export function addHolder(holder: HolderRecord) {
@@ -111,28 +132,35 @@ export function getHolder(id: HolderId): HolderRecord | undefined {
   return state.holders.find(h => h.id === id);
 }
 
-export function addPending(entry: PendingApproval) {
+export function requireHolder(id: HolderId): HolderRecord {
+  const holder = getHolder(id);
+  if (!holder) throw new Error(`This desk did not create holder ${id}.`);
+  return holder;
+}
+
+export function addPending(entry: PendingProposal) {
   state.pending.push(entry);
 }
 
-export function getPending(scheduleId: string): PendingApproval | undefined {
-  return state.pending.find(p => p.scheduleId === scheduleId);
+export function getPending(proposalId: string): PendingProposal | undefined {
+  return state.pending.find(p => p.proposalId === proposalId);
 }
 
-export function removePending(scheduleId: string) {
-  state.pending = state.pending.filter(p => p.scheduleId !== scheduleId);
+/** Refuses a proposal this desk did not create, as the spec requires of every route that acts on one. */
+export function requirePending(proposalId: string): PendingProposal {
+  const pending = getPending(proposalId);
+  if (!pending) throw new Error(`This desk did not propose order ${proposalId}.`);
+  return pending;
 }
 
-export function setWalletApprovalStarted(scheduleId: string, atMs: number | undefined) {
-  const pending = getPending(scheduleId);
-  if (pending) pending.walletApprovalStartedAtMs = atMs;
+export function removePending(proposalId: string) {
+  state.pending = state.pending.filter(p => p.proposalId !== proposalId);
 }
 
 export function addHistory(entry: Omit<HistoryEntry, "id" | "timestampMs">) {
   // Anchored on the shared state (not a plain module variable) for the same reason `state` is:
   // Next.js bundles each route separately, so a module-level counter would restart at 0 per route
-  // and hand out colliding ids (two different rows both `"h1"`) the moment two different API
-  // routes each add a history entry.
+  // and hand out colliding ids the moment two different API routes each add a history entry.
   const id = `h${state.history.length + 1}`;
   state.history.unshift({ ...entry, id, timestampMs: Date.now() });
 }
