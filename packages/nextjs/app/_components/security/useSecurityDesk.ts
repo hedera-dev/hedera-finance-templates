@@ -24,23 +24,23 @@ async function request(url: string, init?: RequestInit) {
   return data;
 }
 
-/** What the tour shows beside a button: the network's answer, and the transaction or schedule it came with. */
+/** What the tour shows beside a button: the chain's answer, and the transaction it came with. */
 export type TourResult = {
   ok: boolean;
-  /** `SUCCESS`, the network's code, or `Error` when the request could not be carried out at all. */
+  /** `SUCCESS`, the error the contract returned, or `Error` when the request never reached the chain. */
   result: string;
   message: string;
-  transactionId?: string;
-  scheduleId?: string;
+  txHash?: string;
+  proposalId?: string;
 };
 
 const postJson = (url: string, body: unknown = {}) =>
   request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /**
- * Drives the desk: polls `/api/security/state` for everything the network shows, and exposes
- * one function per action the learner can take. Every mutating call replaces `state` with the
- * fresh view the route sends back, so the page never has to guess what changed.
+ * Drives the desk: polls `/api/security/state` for everything the chain shows, and exposes one
+ * function per action the learner can take. Every mutating call replaces `state` with the fresh
+ * view the route sends back, so the page never has to guess what changed.
  */
 export function useSecurityDesk() {
   const { address, isConnected, chainId } = useAccount();
@@ -83,22 +83,26 @@ export function useSecurityDesk() {
       setStep(
         "officers",
         "done",
-        officers.result.officer3Kind === "wallet"
-          ? `Officer 3 is the connected wallet (${officers.result.officer3AccountId})`
-          : "3 officer keys ready; Officer 3 is a demo key",
+        `${
+          officers.result.officer3Kind === "wallet" ? "Officer 3 is the connected wallet" : "Officer 3 is a demo key"
+        }; board ${officers.result.boardContractId}`,
       );
 
       setStep("token", "active");
       const token = await postJson("/api/security/setup/token");
-      setStep("token", "done", `Token ${token.result.tokenId}`);
+      setStep("token", "done", `Token ${token.result.contractId} (equity configuration v${token.result.version})`);
 
       setStep("holders", "active");
       const holders = await postJson("/api/security/setup/holders");
-      setStep("holders", "done", holders.result.map((h: { accountId: string }) => h.accountId).join(", "));
+      setStep(
+        "holders",
+        "done",
+        holders.result.map((h: { accountId: string | null; address: string }) => h.accountId ?? h.address).join(", "),
+      );
 
       setStep("distribute", "active");
-      await postJson("/api/security/setup/distribute");
-      setStep("distribute", "done", "Holder A granted KYC and sent 100");
+      const distributed = await postJson("/api/security/setup/distribute");
+      setStep("distribute", "done", `Holder A granted KYC by two officers and sent ${distributed.result.holderA}`);
 
       await refresh();
     } catch (error) {
@@ -151,42 +155,43 @@ export function useSecurityDesk() {
   );
 
   const approve = useCallback(
-    (scheduleId: string) =>
-      withBusy(`approve-${scheduleId}`, async () => {
-        const data = await postJson(`/api/security/orders/${encodeURIComponent(scheduleId)}/approve`);
+    (proposalId: string) =>
+      withBusy(`approve-${proposalId}`, async () => {
+        const data = await postJson(`/api/security/orders/${encodeURIComponent(proposalId)}/approve`);
         setState(data.state);
       }),
     [withBusy],
   );
 
   const remove = useCallback(
-    (scheduleId: string) =>
-      withBusy(`delete-${scheduleId}`, async () => {
-        const data = await request(`/api/security/orders/${encodeURIComponent(scheduleId)}`, { method: "DELETE" });
+    (proposalId: string) =>
+      withBusy(`delete-${proposalId}`, async () => {
+        const data = await request(`/api/security/orders/${encodeURIComponent(proposalId)}`, { method: "DELETE" });
         setState(data.state);
       }),
     [withBusy],
   );
 
   const approveAsWallet = useCallback(
-    (scheduleId: string) =>
-      withBusy(`wallet-${scheduleId}`, async () => {
+    (proposalId: string) =>
+      withBusy(`wallet-${proposalId}`, async () => {
         if (!isConnected) throw new Error("No wallet is connected.");
-        // The desk reads and writes Hedera testnet; from a wallet on any other network this
-        // transaction would go to a long-zero address that means nothing there.
+        // The board lives on Hedera testnet; from a wallet on any other network this transaction
+        // would go to an address that means nothing there.
         if (chainId !== hederaTestnet.id) throw new Error("Switch the wallet to Hedera testnet to approve.");
 
         const prepared = await postJson(
-          `/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/prepare`,
+          `/api/security/orders/${encodeURIComponent(proposalId)}/approve-wallet/prepare`,
         );
-        // An ordinary transaction the wallet prompts for, which puts Officer 3's own key on the
-        // schedule — `walletApproval.ts` explains why that is the only thing an EVM wallet can
-        // sign here. Gas is set rather than estimated: Hedera's relay estimates a system-contract
-        // call badly, and an underestimate spends the fee for nothing.
-        const hash = await transact({ to: prepared.to, data: prepared.data, gas: 800_000n });
+        // An ordinary `approve(id)` call to the board — the whole point of the EVM version is that
+        // a wallet can be a real officer with no special signing path. Gas is set rather than
+        // estimated because this approval also makes the token's call.
+        const hash = await transact({ to: prepared.to, data: prepared.data, gas: 2_000_000n });
         if (!hash) throw new Error("The wallet did not sign the approval.");
 
-        const data = await postJson(`/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/submit`);
+        const data = await postJson(`/api/security/orders/${encodeURIComponent(proposalId)}/approve-wallet/submit`, {
+          txHash: hash,
+        });
         setState(data.state);
       }),
     [withBusy, isConnected, chainId, transact],
@@ -202,15 +207,9 @@ export function useSecurityDesk() {
     try {
       const data = await postJson(url, body);
       if (data.state) setState(data.state);
-      const outcome = (data.result ?? {}) as { result?: string; transactionId?: string; scheduleId?: string };
+      const outcome = (data.result ?? {}) as { result?: string; txHash?: string; proposalId?: string };
       const result = outcome.result ?? "SUCCESS";
-      return {
-        ok: result === "SUCCESS",
-        result,
-        message: "",
-        transactionId: outcome.transactionId,
-        scheduleId: outcome.scheduleId,
-      };
+      return { ok: result === "SUCCESS", result, message: "", txHash: outcome.txHash, proposalId: outcome.proposalId };
     } catch (error) {
       return { ok: false, result: "Error", message: error instanceof Error ? error.message : String(error) };
     } finally {

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { setupDistribute } from "~~/services/security/actions";
 import { errorResponse } from "~~/services/security/apiError";
+import { setupDistribute } from "~~/services/security/setup";
 
-/** Step 4: grant KYC to Holder A (signed by Officer 1 and Officer 2) and transfer it 100 units. */
+/** Step 4: admit the issuer and both holders to the control list, grant KYC through the board, and distribute. */
 export async function POST() {
   try {
     const result = await setupDistribute();

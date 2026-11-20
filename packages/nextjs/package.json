@@ -10,7 +10,7 @@
     "lint": "next lint",
     "serve": "next start",
     "start": "next dev",
-    "check-security": "rm -rf .security-check && tsc -p tsconfig.security-check.json && node --test .security-check/tests"
+    "check-security": "rm -rf .security-check && tsc -p tsconfig.security-check.json && node --test \".security-check/tests/**/*.test.js\""
   },
   "dependencies": {
     "@heroicons/react": "^2.1.5",

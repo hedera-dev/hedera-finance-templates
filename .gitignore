@@ -24,3 +24,6 @@ dist
 
 .env
 .env*.local
+
+# Playwright MCP scratch output (screenshots, console logs)
+.playwright-mcp

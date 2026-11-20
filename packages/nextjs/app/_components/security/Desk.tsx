@@ -19,8 +19,8 @@ export function Desk({ view }: { view: View }) {
         <div className="flex flex-col gap-1 max-w-3xl">
           <h1 className="m-0 text-2xl font-bold">A transfer agent&apos;s desk for a regulated token</h1>
           <p className="m-0 text-sm text-base-content/70">
-            The token&apos;s compliance rules are keys on the token itself, enforced by Hedera, and every admin action
-            takes two of three officers.
+            The token&apos;s compliance rules are roles on the token itself, enforced by the contract, and every one of
+            them belongs to a 2-of-3 board rather than to any officer.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -46,8 +46,8 @@ export function Desk({ view }: { view: View }) {
       ) : (
         <>
           <p className="m-0 text-sm text-base-content/60 max-w-3xl">
-            The network enforces the two signatures. The <em>separation</em> is a demo: this desk holds Officers 1 and
-            2, so it can produce both. In production those keys live with different people, or in different custody.
+            The board enforces the two approvals. The <em>separation</em> is a demo: this desk holds Officers 1 and 2,
+            so it can produce both. In production those keys live with different people, or in different custody.
           </p>
           <SecurityDesk desk={desk} />
         </>

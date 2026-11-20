@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { SecurityDeskHook, SetupStep } from "~~/app/_components/security/useSecurityDesk";
-import { hashscanAccount, hashscanSchedule, hashscanToken, hashscanTransaction } from "~~/services/security/hashscan";
+import { hashscanAccount, hashscanContract, hashscanTransaction } from "~~/services/security/hashscan";
 import type { DeskStateView, HolderId, OrderAction } from "~~/services/security/types";
 
 type HolderView = DeskStateView["holders"][number];
@@ -13,16 +13,17 @@ type BusyMap = Record<string, boolean>;
 const ORDER_ACTIONS: { value: OrderAction; label: string; needsHolder: boolean }[] = [
   { value: "freeze", label: "Freeze holder", needsHolder: true },
   { value: "unfreeze", label: "Unfreeze holder", needsHolder: true },
-  { value: "wipe", label: "Wipe holding", needsHolder: true },
+  { value: "redeem", label: "Redeem holding", needsHolder: true },
+  { value: "revokeKyc", label: "Revoke KYC", needsHolder: true },
   { value: "pause", label: "Pause token", needsHolder: false },
   { value: "unpause", label: "Unpause token", needsHolder: false },
 ];
 
 const STEP_LABEL: Record<SetupStep["id"], string> = {
-  officers: "Create the officer keys and the 2-of-3 threshold key",
-  token: "Create the security token with that key as its KYC, freeze, wipe, pause and admin key",
-  holders: "Create two demo holders and associate them",
-  distribute: "Grant KYC to Holder A and transfer it 100",
+  officers: "Create the officer keys and deploy the 2-of-3 board",
+  token: "Deploy the security through the ATS factory, with the board holding its compliance roles",
+  holders: "Create and fund two demo holders",
+  distribute: "Admit the issuer and both holders, grant KYC through the board, and distribute",
 };
 
 function StepIcon({ status }: { status: SetupStep["status"] }) {
@@ -50,7 +51,8 @@ export function SetupPanel({
       <div className="card-body gap-3">
         <h2 className="card-title text-lg">Set up the desk</h2>
         <p className="text-sm text-base-content/70 m-0">
-          Creates the officer keys, the token, the two demo holders, and grants the first holder KYC, in that order.
+          Creates the officer keys and their board, deploys the token through the ATS factory, creates the two demo
+          holders, and grants the first holder KYC — in that order. It costs testnet HBAR, most of it the token.
         </p>
 
         {!configured && (
@@ -99,12 +101,12 @@ export function SetupPanel({
 function describeWallet(wallet: DeskStateView["wallet"]): string {
   if (wallet.kind === "officer3") {
     return (
-      `This wallet is Officer 3 for this desk (${wallet.accountId}) — it can approve a pending order by signing ` +
-      `for it in the wallet, which puts its own key on that order's schedule. It pays that one small fee itself.`
+      `This wallet is Officer 3 for this desk (${wallet.accountId ?? wallet.address}) — it can approve a pending ` +
+      `order itself, with one ordinary transaction to the board that it is prompted for and pays for.`
     );
   }
   if (wallet.kind === "unknown") {
-    return "A wallet is connected, but the desk could not reach the mirror node to check its role just now.";
+    return "A wallet is connected, but the desk could not check its role just now.";
   }
   if (wallet.kind === "not-officer") {
     return "A wallet is connected, but it was not connected before setup, so it can watch this desk but cannot approve orders.";
@@ -147,13 +149,18 @@ function HolderRow({
 }) {
   return (
     <li
-      data-account={holder.accountId}
+      data-account={holder.accountId ?? holder.address}
       className="holder-row flex flex-col gap-1 border border-base-300 rounded-lg p-3"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold">{holder.label}</span>
-        <a href={hashscanAccount(holder.accountId)} target="_blank" rel="noreferrer" className="link text-xs font-mono">
-          {holder.accountId}
+        <a
+          href={hashscanAccount(holder.accountId ?? holder.address)}
+          target="_blank"
+          rel="noreferrer"
+          className="link text-xs font-mono"
+        >
+          {holder.accountId ?? holder.address}
         </a>
       </div>
       <div className="flex flex-wrap gap-3 text-xs text-base-content/70">
@@ -296,17 +303,17 @@ export function TokenPanel({ token }: { token: NonNullable<DeskStateView["token"
       <div className="card-body gap-3">
         <h2 className="card-title text-lg">The token</h2>
         <p className="text-sm text-base-content/70 m-0">
-          What the network reports for the security token, read live from the mirror node.
+          What the token itself reports, read live over the JSON-RPC relay.
         </p>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <a
             id="token-id"
-            href={hashscanToken(token.tokenId)}
+            href={hashscanContract(token.contractId)}
             target="_blank"
             rel="noreferrer"
             className="link font-mono"
           >
-            {token.tokenId}
+            {token.contractId}
           </a>
           <span id="token-symbol" className="badge badge-ghost">
             {token.symbol}
@@ -315,19 +322,61 @@ export function TokenPanel({ token }: { token: NonNullable<DeskStateView["token"
             {token.status}
           </span>
         </div>
+        <p className="text-xs text-base-content/60 m-0 font-mono [overflow-wrap:anywhere]">
+          <span id="token-address">{token.address}</span>
+        </p>
         <p className="text-sm m-0">
           Total supply: <span id="token-supply">{token.supply}</span>
         </p>
-        <ul id="token-keys" className="flex flex-col gap-1 text-sm">
-          {token.keys === "unavailable" ? (
-            <li className="text-base-content/60">Key structure unavailable.</li>
+        <ul id="token-roles" className="flex flex-col gap-1 text-sm">
+          {token.roles === "unavailable" ? (
+            <li className="text-base-content/60">Roles unavailable.</li>
           ) : (
-            token.keys.map(k => (
-              <li key={k.name} className="token-key">
-                {k.name}: {k.isThreshold ? "2-of-3 threshold" : "unknown structure"}
+            token.roles.map(r => (
+              <li key={r.name} className="token-role">
+                {r.name}: {r.heldByBoard ? "2-of-3 board" : "not held by the board"}
+                {r.heldByAnyOfficer ? " — and an officer holds it too" : ", and no officer holds it"}
               </li>
             ))
           )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function BoardPanel({ board }: { board: NonNullable<DeskStateView["board"]> }) {
+  return (
+    <div className="card bg-base-100 border border-base-300 shadow-sm">
+      <div className="card-body gap-3">
+        <h2 className="card-title text-lg">The officer board</h2>
+        <p className="text-sm text-base-content/70 m-0">
+          The contract that holds the token&apos;s compliance roles. It acts on the {board.approvalsRequired}nd
+          officer&apos;s approval and not before.
+        </p>
+        <a
+          id="board-id"
+          href={hashscanContract(board.contractId)}
+          target="_blank"
+          rel="noreferrer"
+          className="link font-mono text-sm"
+        >
+          {board.contractId}
+        </a>
+        <ul id="board-officers" className="flex flex-col gap-1 text-sm">
+          {board.officers.map(officer => (
+            <li key={officer.id} className="board-officer flex flex-wrap items-baseline gap-2">
+              <span>{officer.label}</span>
+              <a
+                href={hashscanAccount(officer.accountId ?? officer.address)}
+                target="_blank"
+                rel="noreferrer"
+                className="link text-xs font-mono [overflow-wrap:anywhere]"
+              >
+                {officer.accountId ?? officer.address}
+              </a>
+            </li>
+          ))}
         </ul>
       </div>
     </div>
@@ -351,17 +400,22 @@ function PendingRow({
 }) {
   return (
     <li
-      data-schedule={row.scheduleId}
+      data-proposal={row.proposalId}
       className="approval-row flex flex-col gap-1 border border-base-300 rounded-lg p-3"
     >
       <div className="flex items-center justify-between gap-2">
-        <a href={hashscanSchedule(row.scheduleId)} target="_blank" rel="noreferrer" className="link text-xs font-mono">
-          {row.scheduleId}
+        <a
+          href={hashscanTransaction(row.proposeTxHash)}
+          target="_blank"
+          rel="noreferrer"
+          className="link text-xs font-mono"
+        >
+          Order {row.proposalId}
         </a>
         <span className="text-xs text-base-content/60">
-          {row.signatureCount === "unknown"
-            ? "signatures could not be read just now"
-            : `${row.signatureCount} of 3 officers signed`}
+          {row.approvals === "unknown"
+            ? "approvals could not be read just now"
+            : `${row.approvals} of 3 officers approved${row.approvedBy.length ? ` (${row.approvedBy.join(", ")})` : ""}`}
         </span>
       </div>
       <p className="text-sm m-0">{row.actionLabel}</p>
@@ -373,9 +427,9 @@ function PendingRow({
           {busy.approve && <span className="loading loading-spinner loading-xs" />}
           Approve as Officer 2
         </button>
-        <button className="approval-delete btn btn-xs btn-ghost" disabled={busy.delete} onClick={onDelete}>
+        <button className="approval-cancel btn btn-xs btn-ghost" disabled={busy.delete} onClick={onDelete}>
           {busy.delete && <span className="loading loading-spinner loading-xs" />}
-          Delete
+          Cancel
         </button>
         {isWalletOfficer && (
           <button
@@ -404,30 +458,30 @@ export function PendingPanel({
   rows: PendingView[];
   isWalletOfficer: boolean;
   busy: BusyMap;
-  onApprove: (scheduleId: string) => void;
-  onDelete: (scheduleId: string) => void;
-  onApproveWallet: (scheduleId: string) => void;
+  onApprove: (proposalId: string) => void;
+  onDelete: (proposalId: string) => void;
+  onApproveWallet: (proposalId: string) => void;
 }) {
   return (
     <div className="card bg-base-100 border border-base-300 shadow-sm">
       <div className="card-body gap-3">
         <h2 className="card-title text-lg">Pending approvals</h2>
-        <p className="text-sm text-base-content/70 m-0">Orders Officer 1 proposed, waiting on a second signature.</p>
+        <p className="text-sm text-base-content/70 m-0">Orders Officer 1 proposed, waiting on a second approval.</p>
         <ul id="pending-approvals" className="flex flex-col gap-2">
           {rows.length === 0 && <li className="text-sm text-base-content/50">No pending orders.</li>}
           {rows.map(row => (
             <PendingRow
-              key={row.scheduleId}
+              key={row.proposalId}
               row={row}
               isWalletOfficer={isWalletOfficer}
               busy={{
-                approve: Boolean(busy[`approve-${row.scheduleId}`]),
-                delete: Boolean(busy[`delete-${row.scheduleId}`]),
-                wallet: Boolean(busy[`wallet-${row.scheduleId}`]),
+                approve: Boolean(busy[`approve-${row.proposalId}`]),
+                delete: Boolean(busy[`delete-${row.proposalId}`]),
+                wallet: Boolean(busy[`wallet-${row.proposalId}`]),
               }}
-              onApprove={() => onApprove(row.scheduleId)}
-              onDelete={() => onDelete(row.scheduleId)}
-              onApproveWallet={() => onApproveWallet(row.scheduleId)}
+              onApprove={() => onApprove(row.proposalId)}
+              onDelete={() => onDelete(row.proposalId)}
+              onApproveWallet={() => onApproveWallet(row.proposalId)}
             />
           ))}
         </ul>
@@ -437,15 +491,22 @@ export function PendingPanel({
 }
 
 function HistoryRow({ row }: { row: HistoryView }) {
-  const href =
-    row.linkKind === "schedule" ? hashscanSchedule(row.transactionId) : hashscanTransaction(row.transactionId);
   return (
     <li className="history-entry flex flex-col gap-0.5 border-b border-base-300 py-2 text-sm last:border-none">
       <div className="flex items-baseline justify-between gap-2">
         <span className="shrink-0 text-xs text-base-content/60">{new Date(row.timestampMs).toLocaleTimeString()}</span>
-        <a href={href} target="_blank" rel="noreferrer" className="link text-xs font-mono min-w-0 break-all text-right">
-          {row.transactionId}
-        </a>
+        {row.txHash ? (
+          <a
+            href={hashscanTransaction(row.txHash)}
+            target="_blank"
+            rel="noreferrer"
+            className="link text-xs font-mono min-w-0 break-all text-right"
+          >
+            {row.txHash}
+          </a>
+        ) : (
+          <span className="text-xs text-base-content/40">no transaction</span>
+        )}
       </div>
       <p className="m-0 [overflow-wrap:anywhere]">
         {row.action}
@@ -480,8 +541,8 @@ function RightColumnPlaceholder() {
       <div className="card-body gap-2">
         <h2 className="card-title text-lg">What the network will show</h2>
         <p className="text-sm text-base-content/70 m-0">
-          Once the desk is set up, this column shows the token and its keys, pending approvals, and the desk&apos;s
-          history — all read live from the mirror node.
+          Once the desk is set up, this column shows the token and who holds its roles, the board, pending approvals,
+          and the desk&apos;s history — all read live from the chain.
         </p>
       </div>
     </div>
@@ -522,6 +583,7 @@ export function SecurityDesk({ desk }: { desk: SecurityDeskHook }) {
         ) : (
           <>
             <TokenPanel token={state.token} />
+            {state.board && <BoardPanel board={state.board} />}
             <PendingPanel
               rows={state.pending}
               isWalletOfficer={state.wallet.kind === "officer3"}

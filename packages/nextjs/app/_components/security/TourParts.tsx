@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { TourResult } from "./useSecurityDesk";
-import { hashscanToken, hashscanTransaction } from "~~/services/security/hashscan";
+import { hashscanContract, hashscanTransaction } from "~~/services/security/hashscan";
 import type { DeskStateView, HolderView, PendingView } from "~~/services/security/types";
 
 export function Label({ children }: { children: ReactNode }) {
@@ -71,15 +71,15 @@ export function Columns({ main, aside }: { main: ReactNode; aside: ReactNode }) 
   );
 }
 
-export function TxLink({ id, children = "View on HashScan" }: { id: string; children?: ReactNode }) {
+export function TxLink({ hash, children = "View on HashScan" }: { hash: string; children?: ReactNode }) {
   return (
-    <a className="link" href={hashscanTransaction(id)} target="_blank" rel="noreferrer">
+    <a className="link" href={hashscanTransaction(hash)} target="_blank" rel="noreferrer">
       {children}
     </a>
   );
 }
 
-/** A refusal beside the button that was pressed: the network's code, or why the request did not run. */
+/** A refusal beside the button that was pressed: the contract's error, or why the request did not run. */
 export function Refusal({ id, result }: { id: string; result: TourResult | null }) {
   if (!result || result.ok) return null;
   return (
@@ -87,10 +87,10 @@ export function Refusal({ id, result }: { id: string; result: TourResult | null 
       <span className="min-w-0 [overflow-wrap:anywhere]">
         <strong className="font-mono">{result.result}</strong>
         {result.message ? ` — ${result.message}` : ""}
-        {result.transactionId ? (
+        {result.txHash ? (
           <>
             {" "}
-            <TxLink id={result.transactionId} />
+            <TxLink hash={result.txHash} />
           </>
         ) : null}
       </span>
@@ -107,7 +107,7 @@ function Cross() {
 }
 
 /**
- * An attack's result: refused in red, because the attack failed, which is the keys holding. A request that could not
+ * An attack's result: refused in red, because the attack failed, which is the token holding. A request that could not
  * run at all is neither: it says why, in neutral colours, and does not count as a refusal.
  */
 export function AttackOutcome({ id, result, meaning }: { id: string; result: TourResult | null; meaning: string }) {
@@ -124,8 +124,8 @@ export function AttackOutcome({ id, result, meaning }: { id: string; result: Tou
     return (
       <div id={id} role="alert" className="alert alert-warning text-sm">
         <span>
-          <strong>Accepted.</strong> The network carried it out. Something is broken: the token&apos;s keys are not
-          doing their job.
+          <strong>Accepted.</strong> The chain carried it out. Something is broken: the token&apos;s roles are not doing
+          their job.
         </span>
       </div>
     );
@@ -139,7 +139,7 @@ export function AttackOutcome({ id, result, meaning }: { id: string; result: Tou
           Refused · <span className="font-mono">{result.result}</span>
         </strong>
         <span>{meaning}</span>
-        {result.transactionId ? <TxLink id={result.transactionId}>The refused transaction on HashScan</TxLink> : null}
+        {result.txHash ? <TxLink hash={result.txHash}>The refused transaction on HashScan</TxLink> : null}
       </span>
     </div>
   );
@@ -151,31 +151,32 @@ const frozen = (holder: HolderView) =>
   holder.frozen === "FROZEN" ? "frozen" : holder.frozen === "NOT_FROZEN" ? null : "frozen unknown";
 
 /**
- * What stays in view on every step once the desk exists: the token, whether it is paused, its supply, the shape of its
- * keys, and where each holder stands.
+ * What stays in view on every step once the desk exists: the token, whether it is paused, its supply, who holds its
+ * compliance roles, and where each holder stands.
  */
 export function TokenStrip({ state }: { state: DeskStateView }) {
   const token = state.token!;
-  const allThreshold = token.keys !== "unavailable" && token.keys.every(key => key.isThreshold);
+  const boardHoldsAll =
+    token.roles !== "unavailable" && token.roles.every(role => role.heldByBoard && !role.heldByAnyOfficer);
   return (
     <section id="token-strip" className="card bg-base-100 border border-base-300 shadow-sm" aria-label="The token">
       <div className="card-body gap-2 p-4">
         <div className="flex flex-wrap gap-2 items-center justify-between">
           <Label>
             Token · {token.symbol} ·{" "}
-            {token.keys === "unavailable"
-              ? "keys unavailable"
-              : allThreshold
-                ? "KYC, freeze, wipe, pause and admin keys are each 2-of-3"
-                : "not every key is a 2-of-3 threshold"}
+            {token.roles === "unavailable"
+              ? "roles unavailable"
+              : boardHoldsAll
+                ? "KYC, freeze, controller and pause roles are the board's, and no officer's"
+                : "an officer holds a compliance role"}
           </Label>
           <a
-            href={hashscanToken(token.tokenId)}
+            href={hashscanContract(token.contractId)}
             target="_blank"
             rel="noreferrer"
             className="link link-primary font-mono text-xs"
           >
-            {token.tokenId}
+            {token.contractId}
           </a>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 items-center justify-between">
@@ -194,7 +195,7 @@ export function TokenStrip({ state }: { state: DeskStateView }) {
             </span>
             {state.pending.length > 0 ? (
               <span className="text-sm text-base-content/70">
-                {state.pending.length} {state.pending.length === 1 ? "order" : "orders"} waiting for a signature
+                {state.pending.length} {state.pending.length === 1 ? "order" : "orders"} waiting for a second approval
               </span>
             ) : null}
           </div>
@@ -215,42 +216,46 @@ export function TokenStrip({ state }: { state: DeskStateView }) {
 }
 
 /**
- * Who has signed the order in hand. The schedule records how many keys signed, not whose; Officer 1 always signs
- * first, so the count is enough to say who.
+ * Who has approved the order in hand. The board records which officers approved, not just how many, so this is read
+ * rather than inferred.
  */
 export function OfficersCard({ pending, wallet }: { pending: PendingView | null; wallet: DeskStateView["wallet"] }) {
-  const count = pending?.signatureCount ?? 0;
+  const count = pending?.approvals ?? 0;
+  const approved = pending?.approvedBy ?? [];
   const officers = [
     { name: "Officer 1", note: "key held by this desk" },
     { name: "Officer 2", note: "key held by this desk" },
     {
       name: "Officer 3",
-      note: wallet.kind === "officer3" ? `your wallet, ${wallet.accountId}` : "a demo key held by this desk",
+      note:
+        wallet.kind === "officer3"
+          ? `your wallet, ${wallet.accountId ?? wallet.address}`
+          : "a demo key held by this desk",
     },
   ];
   return (
     <Panel
-      title="Who has signed?"
+      title="Who has approved?"
       caption={
         pending === null
-          ? "Nothing is waiting for a signature."
+          ? "Nothing is waiting for an approval."
           : count === "unknown"
-            ? "The schedule could not be read just now."
-            : `${count} of 3 officers have signed. The network needs 2.`
+            ? "The board could not be read just now."
+            : `${count} of 3 officers have approved. The board needs 2.`
       }
     >
       <div className="flex flex-col gap-2">
-        {officers.map((officer, index) => {
-          const signed = typeof count === "number" && index < count;
+        {officers.map(officer => {
+          const hasApproved = approved.includes(officer.name);
           return (
             <div
               key={officer.name}
-              className={`rounded-box px-4 py-3 flex justify-between gap-2 flex-wrap ${signed ? "bg-success/10 border border-success/40" : "bg-base-200"}`}
+              className={`rounded-box px-4 py-3 flex justify-between gap-2 flex-wrap ${hasApproved ? "bg-success/10 border border-success/40" : "bg-base-200"}`}
             >
               <span className="text-sm">
                 <strong>{officer.name}</strong> · <span className="text-base-content/70">{officer.note}</span>
               </span>
-              <span className="text-xs">{signed ? "✓ signed" : "not signed"}</span>
+              <span className="text-xs">{hasApproved ? "✓ approved" : "not approved"}</span>
             </div>
           );
         })}
