@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HistoryPanel, HoldersPanel, OrderPanel, PendingPanel, SetupPanel, WalletStateCard } from "./SecurityDesk";
 import {
   AttackOutcome,
@@ -65,9 +65,27 @@ export function Tour({ desk }: { desk: SecurityDeskHook }) {
     setChapter("break");
   }, [tokenId]);
 
+  // An order nobody signs in time expires on the network, which empties the pending list and rewinds the
+  // tour to Propose. Without this the step appears to have reset itself. Only an expiry that lands while
+  // the page is open is announced: the first read is remembered, not reported.
+  const expired = state?.history.find(entry => entry.result === "EXPIRED") ?? null;
+  const expiredId = expired?.id ?? null;
+  const expiredLabel = expired?.action ?? "";
+  const announcedExpiry = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const previous = announcedExpiry.current;
+    announcedExpiry.current = expiredId;
+    if (previous === undefined || expiredId === null || expiredId === previous) return;
+    setFlash({
+      text: `${expiredLabel} — no second signature arrived in time, so the network let the order expire. Propose it again.`,
+      result: { ok: false, result: "EXPIRED", message: "" },
+    });
+  }, [expiredId, expiredLabel]);
+
   const go = async (key: string, url: string, body?: unknown) => {
     setResults(previous => ({ ...previous, [key]: null }));
     setFlash(null);
+    desk.clearMessage();
     const result = await desk.act(key, url, body);
     setResults(previous => ({ ...previous, [key]: result }));
     // Proposing and approving move the tour on, so their outcome is announced above the next step.
@@ -80,6 +98,7 @@ export function Tour({ desk }: { desk: SecurityDeskHook }) {
   const pick = (next: Chapter) => {
     setChapter(next);
     setFlash(null);
+    desk.clearMessage();
   };
 
   const stage = stageOf(state, isSettingUp, chapter);
@@ -93,6 +112,11 @@ export function Tour({ desk }: { desk: SecurityDeskHook }) {
           <span className="min-w-0 [overflow-wrap:anywhere]">
             {flash.text} {flash.result.transactionId ? <TxLink id={flash.result.transactionId} /> : null}
           </span>
+        </div>
+      ) : null}
+      {desk.message ? (
+        <div role="alert" className="alert alert-error text-sm py-2">
+          <span className="min-w-0 [overflow-wrap:anywhere]">{desk.message}</span>
         </div>
       ) : null}
       {ctx && stage !== "setup" ? <TokenStrip state={ctx.state} /> : null}
@@ -267,7 +291,7 @@ function ProposeScreen({ ctx }: { ctx: Ctx }) {
 // So the order schedules an update to a record account whose key is the same 2-of-3 list.
 new ScheduleCreateTransaction()
   .setScheduledTransaction(new AccountUpdateTransaction().setAccountMemo("freeze:A:${reference}"))
-  .setExpirationTime(now + 5 minutes)
+  .setExpirationTime(now + 15 minutes)
   .sign(officer1Key)   // one of the two signatures the record account's key needs`}
           />
         </>
@@ -331,7 +355,6 @@ function ApproveScreen({ ctx }: { ctx: Ctx }) {
               ) : null}
             </div>
             <Refusal id="approve-error" result={results.approve ?? null} />
-            {desk.message ? <p className="m-0 text-sm text-base-content/70">{desk.message}</p> : null}
           </StepCard>
           <UnderTheHood
             title="the calls this step makes"
@@ -463,12 +486,12 @@ function OrdersScreen({ ctx }: { ctx: Ctx }) {
               <WalletStateCard wallet={state.wallet} />
             </div>
           </div>
-          {desk.message ? <p className="m-0 text-sm text-base-content/70">{desk.message}</p> : null}
         </>
       }
       aside={
         <>
-          <HoldersPanel holders={state.holders} busy={desk.busy} onSend={desk.send} />
+          <OfficersCard pending={state.pending[0] ?? null} wallet={state.wallet} />
+          <HoldersPanel holders={state.holders} busy={desk.busy} results={desk.sendResults} onSend={desk.send} />
           <details className="card bg-base-100 border border-base-300 shadow-sm">
             <summary className="cursor-pointer p-5 font-semibold">
               History · {state.history.length} {state.history.length === 1 ? "action" : "actions"}

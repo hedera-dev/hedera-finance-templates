@@ -80,7 +80,12 @@ import { getSdkClient } from "~~/services/security/sdkClient";
  * record-account schedule exists only so the page has something genuine to call "pending".
  */
 
-const ORDER_EXPIRY_MS = 5 * 60 * 1000;
+/**
+ * How long an order waits for its second signature. It has to outlast a real wallet prompt —
+ * opening the wallet, switching network, reading the transaction — or an order an officer is
+ * part-way through approving expires under them. The network's own ceiling is 30 minutes.
+ */
+const ORDER_EXPIRY_MS = 15 * 60 * 1000;
 const SEND_AMOUNT = 10;
 /** How long a wallet approval that has been handed to the browser keeps its order off the poll's hands. */
 const WALLET_APPROVAL_WINDOW_MS = 2 * 60 * 1000;

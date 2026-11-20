@@ -123,12 +123,20 @@ export function useSecurityDesk() {
     }
   }, []);
 
+  /** The network's answer to each holder's last send, kept per holder so it can sit under that holder's button. */
+  const [sendResults, setSendResults] = useState<Record<string, { ok: boolean; text: string }>>({});
+
   const send = useCallback(
     (holderId: HolderId) =>
       withBusy(`send-${holderId}`, async () => {
-        const data = await postJson(`/api/security/holders/${holderId}/send`);
-        setState(data.state);
-        setMessage(`Send 10 to Holder ${holderId}: ${data.result.result}`);
+        const record = (ok: boolean, text: string) => setSendResults(r => ({ ...r, [holderId]: { ok, text } }));
+        try {
+          const data = await postJson(`/api/security/holders/${holderId}/send`);
+          setState(data.state);
+          record(data.result.result === "SUCCESS", data.result.result);
+        } catch (error) {
+          record(false, error instanceof Error ? error.message : "Error");
+        }
       }),
     [withBusy],
   );
@@ -210,6 +218,8 @@ export function useSecurityDesk() {
     }
   }, []);
 
+  const clearMessage = useCallback(() => setMessage(null), []);
+
   return {
     state,
     busyKey,
@@ -218,6 +228,8 @@ export function useSecurityDesk() {
     isSettingUp,
     busy,
     message,
+    clearMessage,
+    sendResults,
     runSetup,
     send,
     propose,
