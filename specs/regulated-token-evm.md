@@ -58,15 +58,18 @@ holder with its balance, KYC and frozen state.
    `#approve-order`, labelled `Approve as Officer 2`; `#approve-as-wallet` too
    when the wallet is Officer 3. The result is announced above the next step
    with a HashScan link.
-4. **Break it** — three attacks, each a real transaction, in its own card with
+4. **Break it** — four attacks, each a real transaction, in its own card with
    what it tries, the call it makes and its result: `#send-no-kyc` sends 10 to
    Holder B (`#send-no-kyc-result`); `#send-frozen` sends 10 to the frozen
    Holder A (`#send-frozen-result`); `#one-officer` has Officer 1 call
-   `setAddressFrozen` on the token directly (`#one-officer-result`). A refusal
+   `setAddressFrozen` on the token directly (`#one-officer-result`);
+   `#one-officer-board` has Officer 1 approve an order Officer 1 proposed, to
+   reach two approvals alone (`#one-officer-board-result`). A refusal
    shows in red with the error the token returned and a link to the
    transaction; an acceptance shows in amber; an attack that cannot run yet
-   (Holder A not frozen) says so in neutral colours and does not count. A count
-   says how many were tried and refused, and `#next-orders` moves on.
+   (Holder A not frozen, or no order waiting) says so in neutral colours and
+   does not count. A count says how many were tried and refused, and
+   `#next-orders` moves on.
 5. **More orders** — the court order form and pending approvals below, the
    holders with their `Send 10` buttons, and the history, collapsed.
 
@@ -176,14 +179,21 @@ row leaves `#pending-approvals` and the action lands in `#history` with the hash
 of the transaction that did it, naming the officer who approved.
 
 **An order that the token refuses is recorded, not retried.** When the board's
-call reverts — the token is already paused, say — the board surfaces the token's
-own error, the approval transaction fails as a whole, and the proposal stays
-pending with the failure recorded against it in `#history`. The proposal can be
-approved again once the obstacle is gone, or cancelled.
+call would revert — the token is already unpaused, say — the desk names the
+token's own error (`IsUnpaused`) beside the control that was pressed and in
+`#history`, and the officer is not charged for a transaction that cannot
+succeed. Nothing changes on the token, and the proposal stays pending with its
+one approval, to be approved again once the obstacle is gone, or cancelled. An
+approval that the board itself refuses — the proposer approving their own order
+— is sent, so that refusal is on the ledger.
 
 **A frozen holder cannot move the token.** After a freeze executes, `Send 10` to
 that holder reverts. After an unfreeze — which also takes two officers — the
-same send succeeds.
+same send succeeds. ATS carries an address freeze on the control list: on a
+whitelisted token `setAddressFrozen(holder, true)` takes the holder off the
+list, so a holder is frozen exactly when the token's `isInControlList` answers
+false for it. (`isFrozen` reports the separate partial freeze of a balance,
+which this desk does not use.)
 
 **A redemption removes a holding.** Redeeming Holder A's balance through the
 controller role sets it to `0` and lowers `#token-supply` by the amount
@@ -247,7 +257,7 @@ it and cannot be pressed twice.
    proposal the board reports as pending with one approval, and that Holder A is
    **not** frozen on the token.
 6. Press `Approve as Officer 2` on that row. Confirm the row leaves
-   `#pending-approvals`, the token's `isFrozen` for Holder A is true, and
+   `#pending-approvals`, the token's `isInControlList` for Holder A is false, and
    `#history` has the action with the case reference and the transaction hash.
 7. Press `Send 10` on Holder A. Confirm it is refused and the balance does not
    move.

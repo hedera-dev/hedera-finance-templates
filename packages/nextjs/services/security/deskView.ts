@@ -71,12 +71,15 @@ async function buildHolderView(
 ): Promise<HolderView> {
   const client = getPublicClient();
   try {
-    const [balance, frozen, kycStatus] = await Promise.all([
+    const [balance, listed, kycStatus] = await Promise.all([
       retryTransient(() =>
         client.readContract({ address: token, abi: tokenAbi, functionName: "balanceOf", args: [address] }),
       ),
+      // ATS freezes an address by taking it off the control list, which on this token is a
+      // whitelist, so a holder's frozen state is read from the list rather than from `isFrozen` —
+      // that one reports the separate partial freeze of a balance.
       retryTransient(() =>
-        client.readContract({ address: token, abi: tokenAbi, functionName: "isFrozen", args: [address] }),
+        client.readContract({ address: token, abi: tokenAbi, functionName: "isInControlList", args: [address] }),
       ),
       retryTransient(() =>
         client.readContract({ address: token, abi: tokenAbi, functionName: "getKycStatusFor", args: [address] }),
@@ -89,7 +92,7 @@ async function buildHolderView(
       address,
       // ATS's KycStatus: 1 is granted.
       kyc: kycStatus === 1 ? "GRANTED" : "NOT_GRANTED",
-      frozen: frozen ? "FROZEN" : "NOT_FROZEN",
+      frozen: listed ? "NOT_FROZEN" : "FROZEN",
       balance: balance.toString(),
     };
   } catch {
@@ -158,10 +161,10 @@ async function buildPendingViews(): Promise<PendingView[]> {
 
     try {
       const proposal = await readProposal(pending.proposalId);
-      if (proposal.executed || proposal.cancelled) {
-        removePending(pending.proposalId);
-        continue;
-      }
+      // Left in desk memory rather than removed: the route that carried the order records it and
+      // clears it. Removing it here would pull the entry out from under a wallet approval that
+      // the board has executed but the browser has not reported back yet.
+      if (proposal.executed || proposal.cancelled) continue;
       if (Date.now() > Number(proposal.expiresAt) * 1000) {
         // The board will refuse an approval from here on, so the order is over. Recorded once,
         // because the pending entry it is read from goes with it.
@@ -205,9 +208,6 @@ export async function buildDeskStateView(walletEvmAddress?: string): Promise<Des
   }
 
   const state = getDeskState();
-  const setupComplete =
-    state.officers.length === 3 && state.board !== null && state.token !== null && state.holders.length === 2;
-
   const [token, board, holders, wallet, pending] = await Promise.all([
     state.token ? buildTokenView(state.token.address, state.token.contractId, state.token.symbol) : null,
     buildBoardView(),
@@ -219,6 +219,16 @@ export async function buildDeskStateView(walletEvmAddress?: string): Promise<Des
     buildWalletState(walletEvmAddress),
     state.board ? buildPendingViews() : [],
   ]);
+
+  // The last setup step issues the supply, so a token with none is a desk whose setup did not
+  // finish: the tour must stay on Set up rather than offer orders against an empty register.
+  const setupComplete =
+    state.officers.length === 3 &&
+    state.board !== null &&
+    state.holders.length === 2 &&
+    token !== null &&
+    token.supply !== "unavailable" &&
+    token.supply !== "0";
 
   return {
     config: { configured: true, missing: [] },

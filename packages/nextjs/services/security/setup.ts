@@ -16,9 +16,12 @@ import {
   GAS_ISSUE,
   GAS_TRANSFER,
   HOLDER_A_AMOUNT,
+  HOLDER_FUNDING_HBAR,
   ISSUE_AMOUNT,
+  OFFICER_FUNDING_HBAR,
   ROLE_CONTROL_LIST,
   ROLE_ISSUER,
+  ROLE_SSI_MANAGER,
   TOKEN_ISIN,
   TOKEN_MAX_SUPPLY,
   TOKEN_NAME,
@@ -73,7 +76,7 @@ export async function setupOfficers(walletEvm?: string): Promise<OfficersResult>
 
   const demoOfficers: OfficerRecord[] = [];
   for (const id of ["1", "2"] as const) {
-    const created = await createFundedAccount();
+    const created = await createFundedAccount(OFFICER_FUNDING_HBAR);
     demoOfficers.push({
       id,
       isWallet: false,
@@ -94,7 +97,7 @@ export async function setupOfficers(walletEvm?: string): Promise<OfficersResult>
       privateKey: null,
     };
   } else {
-    const created = await createFundedAccount();
+    const created = await createFundedAccount(OFFICER_FUNDING_HBAR);
     officer3 = {
       id: "3",
       isWallet: false,
@@ -178,6 +181,7 @@ export async function setupToken(): Promise<TokenResult> {
         { role: DEFAULT_ADMIN_ROLE, members: [operator.account.address] },
         { role: ROLE_ISSUER, members: [operator.account.address] },
         { role: ROLE_CONTROL_LIST, members: [operator.account.address] },
+        { role: ROLE_SSI_MANAGER, members: [operator.account.address] },
         // Every coercive power, held by the board alone.
         ...BOARD_ROLES.map(({ role }) => ({ role, members: [board] })),
       ],
@@ -280,14 +284,14 @@ function tokenAddressFromLogs(
 
 export type HolderResult = { id: HolderId; label: string; address: Address; accountId: string | null };
 
-/** Step 3: two demo holders, funded so they can pay for a transaction of their own. */
+/** Step 3: two demo holders. They only ever receive, so each gets just enough to exist. */
 export async function setupHolders(): Promise<HolderResult[]> {
   const results: HolderResult[] = [];
   for (const [id, label] of [
     ["A", "Holder A"],
     ["B", "Holder B"],
   ] as const) {
-    const created = await createFundedAccount();
+    const created = await createFundedAccount(HOLDER_FUNDING_HBAR);
     const record: HolderRecord = {
       id,
       label,
@@ -321,13 +325,33 @@ export async function setupDistribute(): Promise<{ holderA: string; issued: stri
   const holders = { A: requireHolder("A"), B: requireHolder("B") };
   const issuer = operator.account.address;
 
+  // The factory puts the deployer on the list already, and `addToControlList` refuses an account
+  // that is on it, so ask the token before adding. Both holders go on: holder B is kept off the
+  // token by KYC alone, so the first refusal in "Break it" is unambiguously about KYC.
   for (const account of [issuer, holders.A.address, holders.B.address]) {
-    await send(token.address, tokenAbi, "addToControlList", [account], GAS_CONTROL_LIST);
+    const listed = await operator.publicClient.readContract({
+      address: token.address,
+      abi: tokenAbi,
+      functionName: "isInControlList",
+      args: [account],
+    });
+    if (!listed) await send(token.address, tokenAbi, "addToControlList", [account], GAS_CONTROL_LIST);
   }
 
-  const board = requireBoard().address;
+  // `grantKyc` names the credential's issuer and refuses one the token does not know, so the
+  // transfer agent's back office registers itself as an issuer first. That is bookkeeping about
+  // who vouches for a credential, not a coercive power, so it does not go through the board.
+  const registered = await operator.publicClient.readContract({
+    address: token.address,
+    abi: tokenAbi,
+    functionName: "isIssuer",
+    args: [issuer],
+  });
+  if (!registered) await send(token.address, tokenAbi, "addIssuer", [issuer], GAS_CONTROL_LIST);
+
+  // The board makes the call, because ROLE_KYC is the board's.
   for (const account of [issuer, holders.A.address]) {
-    await carryOrderNow(token.address, encodeGrantKyc(account, board));
+    await carryOrderNow(token.address, encodeGrantKyc(account, issuer));
   }
   addHistory({
     action: `Granted KYC to the issuer and ${holders.A.label}, two officers each`,

@@ -395,6 +395,14 @@ const ATTACKS: { type: string; who: string; title: string; text: string; meaning
     meaning: "ROLE_FREEZE_MANAGER belongs to the board, and to no officer. The token refuses its own officer.",
     code: "token.setAddressFrozen(holderA, true)   // sent by Officer 1, who holds no role",
   },
+  {
+    type: "one-officer-board",
+    who: "Officer 1",
+    title: "Be both officers",
+    text: "Officer 1 proposes an order and then approves it, to reach two approvals alone. Needs an order waiting.",
+    meaning: "The board counts officers, not approvals: the one who proposed is already the first of the two.",
+    code: "board.approve(id)   // sent by Officer 1, who proposed it",
+  },
 ];
 
 function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
@@ -408,9 +416,9 @@ function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
           <Label>Step 4 of {TOTAL} · optional</Label>
           <h2 className="m-0 text-xl font-bold">Try to break it</h2>
           <p className="m-0 text-sm text-base-content/80">
-            Try to get around the token&apos;s roles. Each attempt is a real transaction, so each refusal is the
-            contract&apos;s own answer, on HashScan. <strong>A refusal is a pass</strong>; an &quot;Accepted&quot; means
-            the roles are not doing their job.
+            Try to get around the token&apos;s roles and the board. Each attempt is a real transaction, so each refusal
+            is the contract&apos;s own answer, on HashScan. <strong>A refusal is a pass</strong>; an
+            &quot;Accepted&quot; means the roles are not doing their job.
           </p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
@@ -422,7 +430,7 @@ function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         {ATTACKS.map(attack => (
           <Panel key={attack.type} title={attack.title}>
             <p className="m-0 text-sm">{attack.text}</p>

@@ -5,7 +5,7 @@
 // their refusal is the point, so they are sent anyway and the refusal ends up on HashScan where
 // a reader can see the network's own record of it.
 import { isTransientRelayError, requireOperator, retryTransient, walletFor } from "./clients";
-import { DEMO_FUNDING_HBAR, GAS_FUND_ACCOUNT } from "./constants";
+import { GAS_FUND_ACCOUNT } from "./constants";
 import { decodeDeskError } from "./errors";
 import type { Abi, Address, Hex, TransactionReceipt } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -98,7 +98,7 @@ export async function send(
  * A fresh ECDSA keypair funded from the operator, which is what lazily creates the account on
  * Hedera. The key stays in server memory and never reaches the browser.
  */
-export async function createFundedAccount(): Promise<{ privateKey: Hex; address: Address; txHash: Hex }> {
+export async function createFundedAccount(hbar: string): Promise<{ privateKey: Hex; address: Address; txHash: Hex }> {
   const operator = requireOperator();
   const privateKey = generatePrivateKey();
   const account = privateKeyToAccount(privateKey);
@@ -107,7 +107,7 @@ export async function createFundedAccount(): Promise<{ privateKey: Hex; address:
     account: operator.account,
     chain: hederaTestnet,
     to: account.address,
-    value: BigInt(Math.round(Number(DEMO_FUNDING_HBAR) * 1e18)),
+    value: BigInt(Math.round(Number(hbar) * 1e18)),
     gas: GAS_FUND_ACCOUNT,
   });
   await operator.publicClient.waitForTransactionReceipt({ hash: txHash });

@@ -14,10 +14,12 @@ export const ATTACK_TYPES: AttackType[] = ["send-no-kyc", "send-frozen", "one-of
 /** An attack that cannot run on the desk as it stands: the page says so, and it does not count. */
 export class AttackRefused extends Error {}
 
+/** ATS freezes an address by taking it off the control list, which on this token is a whitelist. */
 async function isFrozen(token: Address, account: Address): Promise<boolean> {
-  return retryTransient(() =>
-    getPublicClient().readContract({ address: token, abi: tokenAbi, functionName: "isFrozen", args: [account] }),
+  const listed = await retryTransient(() =>
+    getPublicClient().readContract({ address: token, abi: tokenAbi, functionName: "isInControlList", args: [account] }),
   );
+  return !listed;
 }
 
 /**
@@ -58,7 +60,7 @@ async function approveOwnOrder() {
   const pending = getDeskState().pending[0];
   if (!pending) throw new AttackRefused("There is no order waiting. Propose one first.");
 
-  const outcome = await approveOnBoard(pending.proposalId, "1");
+  const outcome = await approveOnBoard(pending.proposalId, "1", true);
   const result = outcome.ok ? "SUCCESS" : outcome.errorName;
   const txHash = outcome.ok ? outcome.txHash : (outcome.txHash ?? "");
   addHistory({

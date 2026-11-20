@@ -67,11 +67,17 @@ async function proposeCall(target: Address, data: Hex, officerId: OfficerId) {
 }
 
 /** Approves a proposal, which is what makes the call when it is the second distinct approval. */
-export async function approveOnBoard(proposalId: string, officerId: OfficerId) {
+/**
+ * `sendRefusal` is for the attack that approves its own order: a refusal is the point there, so it
+ * goes to the ledger to be read on HashScan. An officer approving in earnest gains nothing from
+ * paying for a transaction the simulation already refused.
+ */
+export async function approveOnBoard(proposalId: string, officerId: OfficerId, sendRefusal = false) {
   const board = requireBoard();
   const officer = requireSigningOfficer(officerId);
   return simulateAndSend(board.address, boardCallAbi, "approve", [BigInt(proposalId)], GAS_BOARD_APPROVE, {
     signer: { privateKey: officer.privateKey },
+    sendRefusal,
   });
 }
 

@@ -30,6 +30,8 @@ export const ROLE_KYC: Hex = "0x754f499f9fdfbb089d12bdec817a6863d593d8a3ea7f546c
 export const ROLE_FREEZE_MANAGER: Hex = "0x71ae38482e1ab1c28e767d64766d686215b490c8c1bd7dfe6b101525187c2155";
 export const ROLE_PAUSER: Hex = "0x3cb8b459fdb6e7dc3d2a2aa529e530f885d45e03584adb438423209c86a2731f";
 export const ROLE_CONTROLLER: Hex = "0xb4d2b850c3ed8a234d390d5c157bbb1824883213c335ffe2a0f0761bb168713e";
+/** Keeps the token's list of KYC credential issuers; `grantKyc` refuses an issuer not on it. */
+export const ROLE_SSI_MANAGER: Hex = "0x3120494a82251fe85b0403877539486dbfcf0f94c20741a3229cfad31f625ee1";
 
 /** The four compliance roles the board holds, in the order the page lists them. */
 export const BOARD_ROLES = [
@@ -47,9 +49,12 @@ export const GAS_CONTROL_LIST = 400_000n;
 export const GAS_ISSUE = 1_500_000n;
 export const GAS_TRANSFER = 1_500_000n;
 export const GAS_BOARD_PROPOSE = 400_000n;
-/** An approval also makes the token call, so it carries both costs. */
-export const GAS_BOARD_APPROVE = 2_000_000n;
-export const GAS_BOARD_CANCEL = 150_000n;
+/**
+ * An approval also makes the token's call, so it carries both costs. Measured on testnet across
+ * all six orders: 103k for an unpause up to 292k for a KYC grant.
+ */
+export const GAS_BOARD_APPROVE = 500_000n;
+export const GAS_BOARD_CANCEL = 60_000n;
 /** For the tour's attacks, which revert and so cannot be estimated. */
 export const GAS_ATTACK = 200_000n;
 /**
@@ -58,8 +63,15 @@ export const GAS_ATTACK = 200_000n;
  */
 export const GAS_FUND_ACCOUNT = 1_000_000n;
 
-/** HBAR per demo officer and holder: enough to sign the tour's refused transactions a few times. */
-export const DEMO_FUNDING_HBAR = "1";
+/**
+ * HBAR per demo officer. The relay will not accept a transaction unless the sender can cover
+ * `gas limit × gas price` up front — about 0.8 HBAR for an approval at the limit above — so this
+ * is a float for several orders, not the fee itself. What an officer does not spend stays in
+ * their account.
+ */
+export const OFFICER_FUNDING_HBAR = "4";
+/** A holder only receives, so this just has to be enough to lazily create the account. */
+export const HOLDER_FUNDING_HBAR = "1";
 
 export const MIRROR_POLL_ATTEMPTS = 6;
 export const MIRROR_POLL_DELAY_MS = 2000;

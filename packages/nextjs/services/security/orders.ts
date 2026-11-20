@@ -48,6 +48,7 @@ function requireHolderAddress(action: OrderAction, holder: Address | null): Addr
 }
 
 /** Granting KYC is a compliance action like any other, so it goes through the board too. */
+/** `issuer` is the KYC credential's issuer, and the token refuses one that does not hold ROLE_ISSUER. */
 export function encodeGrantKyc(account: Address, issuer: Address): Hex {
   const validFrom = BigInt(Math.floor(Date.now() / 1000));
   const validTo = validFrom + BigInt(KYC_VALID_YEARS * 365 * 24 * 60 * 60);
