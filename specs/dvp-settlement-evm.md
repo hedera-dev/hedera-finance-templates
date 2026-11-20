@@ -309,7 +309,10 @@ Steps 1–10 use the Sandbox, `/?view=sandbox`; step 11 walks the tour.
     `#tour-lock-security`, `#tour-lock-cash`, `#tour-settle`. Then run the four
     attacks and confirm each reads refused, with the error the contract or
     token returned and a HashScan link to a transaction the mirror node reports
-    as failed, and that no balance in `#market-strip` changed.
+    as failed. Each attack pledges before it tries to settle, so a payer's own
+    free balance does fall; what must not change is anything **received**: the
+    Seller's cash, the Buyer's security and the Unverified Buyer's security are
+    all exactly where step 7 left them.
 
 ## Constraints
 
