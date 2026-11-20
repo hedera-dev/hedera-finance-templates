@@ -2,7 +2,7 @@
 
 Settle a trade delivery-versus-payment on Hedera: the security leg and the stablecoin leg move in one scheduled native `TransferTransaction`, or neither moves. No smart contracts.
 
-Paired with the Hedera docs page **Solutions → Finance Workflows → Settle a trade delivery-versus-payment in one atomic transfer**.
+Paired with the Hedera docs page **Solutions → Finance Workflows → DvP Settlement**. That page also covers [dvp-settlement-evm](https://github.com/hedera-dev/hedera-finance-templates/tree/templates/dvp-settlement-evm), which settles the same trade with Asset Tokenization Studio holds and a settlement contract instead of a scheduled transfer. Read them side by side.
 
 ```bash
 npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/dvp-settlement
