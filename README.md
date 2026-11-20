@@ -2,9 +2,9 @@
 
 Settle a trade delivery-versus-payment on Hedera through contracts: the security leg and the cash leg are each encumbered where they already sit, and one settlement contract executes both in a single transaction, or neither moves.
 
-The EVM homologue of the **dvp-settlement** template, which does the same thing with a native scheduled `TransferTransaction` and no contracts at all. Read them side by side.
+The EVM homologue of [dvp-settlement](https://github.com/hedera-dev/hedera-finance-templates/tree/templates/dvp-settlement), which does the same thing with a native scheduled `TransferTransaction` and no contracts at all. Read them side by side.
 
-Paired with the Hedera docs page **Solutions → Finance Workflows → Settle a trade delivery-versus-payment in one atomic transfer**.
+Paired with the Hedera docs page **Solutions → Finance Workflows → DvP Settlement**, under *The same trade, settled by a contract* — the section that covers this template. The rest of that page is the native one.
 
 ```bash
 npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/dvp-settlement-evm
