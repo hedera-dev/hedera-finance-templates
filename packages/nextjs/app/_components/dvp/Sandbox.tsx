@@ -1,445 +1,253 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { AuditLog } from "~~/app/_components/dvp/AuditLog";
-import { HashScanLink } from "~~/app/_components/dvp/HashScanLink";
-import { SetupPanel } from "~~/app/_components/dvp/SetupPanel";
-import { TradeChanges } from "~~/app/_components/dvp/TradeChanges";
-import { type Terms, TradeTicket } from "~~/app/_components/dvp/TradeTicket";
-import { TradesList } from "~~/app/_components/dvp/TradesList";
-import { useMarket } from "~~/app/_components/dvp/useMarket";
-import { useHederaWallet } from "~~/hooks/scaffold-hbar/useHederaWallet";
-import * as dvp from "~~/services/hedera/dvpClient";
-import {
-  BUYER_INITIAL_PAYMENT,
-  SELLER_INITIAL_SECURITY,
-  type TradeSnapshot,
-  UNVERIFIED_BUYER_INITIAL_PAYMENT,
-  type WalletRole,
-} from "~~/services/hedera/types";
-import { notification } from "~~/utils/scaffold-hbar/notification";
+import { useState } from "react";
+import { SetupPanel } from "./SetupPanel";
+import { TradeTicket } from "./TradeTicket";
+import { TradesList } from "./TradesList";
+import type { DvpDeskHook } from "./useDesk";
+import { hashscanAccount, hashscanContract } from "~~/services/dvp/hashscan";
+import type { DeskView, PartyView } from "~~/services/dvp/types";
 
-type SigningMode = "demo" | "hashpack";
-type BusyAction = { scheduleId: string; kind: "sign" | "cancel" } | null;
+const Card = ({
+  title,
+  caption,
+  children,
+  className = "",
+}: {
+  title: string;
+  caption: string;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <section className={`card bg-base-100 border border-base-300 shadow-none ${className}`}>
+    <div className="card-body gap-3 p-4">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="m-0 text-base font-semibold">{title}</h2>
+        <p className="m-0 text-xs text-base-content/60">{caption}</p>
+      </div>
+      {children}
+    </div>
+  </section>
+);
 
-const WALLET_CONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
+const Amount = ({ value }: { value: string }) => (
+  <span className={value === "unavailable" ? "text-base-content/50" : ""}>
+    {value === "unavailable" ? "Unknown" : value}
+  </span>
+);
 
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : "Something went wrong";
+/** Free, with what a pledge has committed beside it. Both numbers, in one column. */
+const Holding = ({ free, held }: { free: string; held: string }) => (
+  <span className="tabular-nums whitespace-nowrap">
+    <Amount value={free} />
+    {held !== "unavailable" && held !== "0" ? (
+      <span className="text-base-content/60">
+        {" "}
+        (+
+        <Amount value={held} /> held)
+      </span>
+    ) : null}
+  </span>
+);
+
+function PartyRow({ party }: { party: PartyView }) {
+  return (
+    <tr className="party-row" data-party={party.id}>
+      <td>
+        <span className="flex flex-col gap-0.5">
+          <span className="whitespace-nowrap">
+            <span className="font-medium">{party.label}</span>
+            {party.isWallet && <span className="badge badge-ghost badge-sm ml-2">wallet</span>}
+            {party.kyc === false && <span className="badge badge-warning badge-sm ml-2">no KYC</span>}
+          </span>
+          <span className="font-mono text-xs text-base-content/60">
+            {party.accountId ? (
+              <a className="link" href={hashscanAccount(party.accountId)} target="_blank" rel="noreferrer">
+                {party.accountId}
+              </a>
+            ) : (
+              party.address
+            )}
+          </span>
+        </span>
+      </td>
+      <td className="text-right" data-security-free={party.securityFree} data-security-held={party.securityHeld}>
+        <Holding free={party.securityFree} held={party.securityHeld} />
+      </td>
+      <td className="text-right" data-cash-free={party.cashFree} data-cash-held={party.cashHeld}>
+        <Holding free={party.cashFree} held={party.cashHeld} />
+      </td>
+    </tr>
+  );
 }
 
-/** Every control on one page: the original desk, for exploring past the tour and for signing with HashPack. */
-export const Sandbox = () => {
-  const { market, setMarket, auditEntries, auditTopicId, configLoaded, operatorConfigured } = useMarket();
-
-  // `?signing=hashpack` is how the tour's "Sign with your own wallet" link lands here with HashPack chosen.
-  const [signingMode, setSigningMode] = useState<SigningMode>(
-    useSearchParams().get("signing") === "hashpack" ? "hashpack" : "demo",
+function MarketCard({ state }: { state: DeskView }) {
+  const { security, cash, settlement } = state.market;
+  if (!security || !cash || !settlement) {
+    return (
+      <Card title="The market" caption="What setup deploys, and where to find it.">
+        <p className="m-0 text-sm text-base-content/70">
+          Nothing is deployed yet. Set up the market and the security, the stablecoin and the settlement contract appear
+          here, each linked to HashScan.
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <Card title="The market" caption="Two tokens from testnet factories, and one contract this repo owns.">
+      <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-base-content/60">Security</dt>
+        <dd className="m-0 font-mono text-xs">
+          <a
+            id="security-id"
+            className="link"
+            href={hashscanContract(security.contractId)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {security.contractId}
+          </a>{" "}
+          <span id="security-address" className="text-base-content/50">
+            {security.address}
+          </span>
+        </dd>
+        <dt className="text-base-content/60">Cash</dt>
+        <dd className="m-0 font-mono text-xs">
+          <a
+            id="cash-id"
+            className="link"
+            href={`https://hashscan.io/testnet/token/${cash.tokenId}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {cash.tokenId}
+          </a>{" "}
+          <span className="text-base-content/50">proxy {cash.proxyContractId}</span>
+        </dd>
+        <dt className="text-base-content/60">Settlement</dt>
+        <dd className="m-0 font-mono text-xs">
+          <a
+            id="contract-id"
+            className="link"
+            href={hashscanContract(settlement.contractId)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {settlement.contractId}
+          </a>
+        </dd>
+      </dl>
+    </Card>
   );
-  const [walletRole, setWalletRole] = useState<WalletRole>("seller");
+}
 
-  const [busyPropose, setBusyPropose] = useState(false);
-  const [busyAction, setBusyAction] = useState<BusyAction>(null);
-  const [busyOnboard, setBusyOnboard] = useState(false);
-  const [busyWallet, setBusyWallet] = useState(false);
-
-  const wallet = useHederaWallet(WALLET_CONNECT_PROJECT_ID);
-  const trades = useMemo(() => market?.trades ?? [], [market]);
-  const newestTrade = trades[0] ?? null;
-
-  const handlePropose = useCallback(
-    async ({ quantity, price, buyerChoice, settlementMode, settlementDelay }: Terms, seller: "demo" | "wallet") => {
-      setBusyPropose(true);
-      try {
-        const next =
-          seller === "wallet"
-            ? await dvp.completeWalletSellerPropose(
-                await wallet.signAndExecute(
-                  await dvp.prepareWalletSellerPropose(quantity, price, buyerChoice, settlementMode, settlementDelay),
-                ),
-              )
-            : await dvp.proposeTrade(quantity, price, buyerChoice, settlementMode, settlementDelay);
-        setMarket(next);
-        notification.success(
-          seller === "wallet"
-            ? "Trade proposed. Your wallet signed as Seller."
-            : "Trade proposed. The demo Seller signed.",
-        );
-      } catch (e) {
-        notification.error(errorMessage(e));
-      } finally {
-        setBusyPropose(false);
-      }
-    },
-    [wallet, setMarket],
+function WalletCard({ state }: { state: DeskView }) {
+  const text =
+    state.wallet.kind === "none"
+      ? "No wallet is connected. The three parties are demo accounts this desk signs for."
+      : state.wallet.kind === "buyer"
+        ? "The connected wallet is the Buyer for this market: it pledges its own cash, and pays for it."
+        : "A wallet is connected, but it was not connected before setup, so it can watch this desk without being a party to it.";
+  return (
+    <Card title="Your wallet" caption="Connect before setup to take the Buyer's side.">
+      <p id="wallet-state" className="m-0 text-sm">
+        {text}
+      </p>
+    </Card>
   );
+}
 
-  const handleSign = useCallback(
-    async (trade: TradeSnapshot) => {
-      setBusyAction({ scheduleId: trade.scheduleId, kind: "sign" });
-      try {
-        const next = trade.buyerIsWallet
-          ? await dvp.completeWalletBuyerSign(
-              trade.scheduleId,
-              await wallet.signAndExecute(await dvp.prepareWalletBuyerSign(trade.scheduleId)),
-            )
-          : await dvp.signTrade(trade.scheduleId);
-        setMarket(next);
-        const updated = next.trades.find(t => t.scheduleId === trade.scheduleId);
-        if (updated?.status === "SETTLED") notification.success("Trade settled: both legs moved together.");
-        else if (updated?.status === "REJECTED") notification.warning(`Trade rejected: ${updated.settlementResult}`);
-        else if (updated?.status === "SCHEDULED") notification.success("Signed. Scheduled to settle at the set time.");
-      } catch (e) {
-        notification.error(errorMessage(e));
-      } finally {
-        setBusyAction(null);
-      }
-    },
-    [wallet, setMarket],
+const formatTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { timeStyle: "medium" });
+
+function HistoryCard({ state }: { state: DeskView }) {
+  return (
+    <Card title="What this desk did" caption="Newest first, with the transaction each step produced.">
+      <ol id="history" className="m-0 p-0 list-none flex flex-col gap-1 text-xs">
+        {state.history.length === 0 && <li className="text-base-content/60">Nothing yet.</li>}
+        {state.history.map((entry, i) => (
+          <li key={`${entry.at}-${i}`} className="history-row flex flex-wrap gap-x-2" data-kind={entry.kind}>
+            <span className="text-base-content/50 tabular-nums">{formatTime(entry.at)}</span>
+            <span>{entry.action}</span>
+            {entry.reference && <span className="text-base-content/60">{entry.reference}</span>}
+            <span className={entry.result === "SUCCESS" ? "text-success" : "text-error"}>{entry.result}</span>
+            {entry.txHash && (
+              <a
+                className="link"
+                href={`https://hashscan.io/testnet/transaction/${entry.txHash}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                tx
+              </a>
+            )}
+          </li>
+        ))}
+      </ol>
+    </Card>
   );
+}
 
-  const handleCancel = useCallback(
-    async (trade: TradeSnapshot) => {
-      setBusyAction({ scheduleId: trade.scheduleId, kind: "cancel" });
-      try {
-        const next = trade.sellerIsWallet
-          ? await dvp.completeWalletSellerCancel(
-              trade.scheduleId,
-              await wallet.signAndExecute(await dvp.prepareWalletSellerCancel(trade.scheduleId)),
-            )
-          : await dvp.cancelTrade(trade.scheduleId);
-        setMarket(next);
-        notification.success("Trade cancelled.");
-      } catch (e) {
-        notification.error(errorMessage(e));
-      } finally {
-        setBusyAction(null);
-      }
-    },
-    [wallet, setMarket],
-  );
+/** Every control on one page: what the learner does on the left, what the chain shows on the right. */
+export function Sandbox({ desk }: { desk: DvpDeskHook }) {
+  const { state } = desk;
+  const [lastResult, setLastResult] = useState<string | null>(null);
 
-  const handleOnboard = useCallback(async () => {
-    setBusyOnboard(true);
-    try {
-      // No transaction when the wallet already associated both tokens in its other role.
-      const association = await dvp.prepareOnboardWallet(walletRole, wallet.accountId);
-      const transactionId = association ? await wallet.signAndExecute(association) : null;
-      setMarket(await dvp.completeOnboardWallet(walletRole, wallet.accountId, transactionId));
-      notification.success("Wallet onboarded.");
-    } catch (e) {
-      notification.error(errorMessage(e));
-    } finally {
-      setBusyOnboard(false);
-    }
-  }, [wallet, walletRole, setMarket]);
-
-  const handleConnectToggle = useCallback(async () => {
-    setBusyWallet(true);
-    try {
-      if (wallet.isConnected) await wallet.disconnect();
-      else await wallet.connect();
-    } catch (e) {
-      notification.error(errorMessage(e));
-    } finally {
-      setBusyWallet(false);
-    }
-  }, [wallet]);
-
-  const onboardedForRole =
-    walletRole === "seller"
-      ? market?.walletSeller?.accountId === wallet.accountId
-      : market?.walletBuyer?.accountId === wallet.accountId;
-
-  const walletBlocksAction = signingMode === "hashpack" && !wallet.isConnected;
-  const walletSellerReady = market?.walletSeller != null && wallet.accountId === market.walletSeller.accountId;
-  const onboardDisabled = busyOnboard || !wallet.isConfigured || !wallet.isConnected || !market || onboardedForRole;
-
-  const canSign = useCallback(
-    (trade: TradeSnapshot) => {
-      if (trade.status !== "PENDING" || walletBlocksAction) return false;
-      if (trade.buyerIsWallet) return wallet.accountId !== "" && wallet.accountId === market?.walletBuyer?.accountId;
-      return true;
-    },
-    [walletBlocksAction, wallet.accountId, market?.walletBuyer?.accountId],
-  );
-
-  const canCancel = useCallback(
-    (trade: TradeSnapshot) => {
-      if ((trade.status !== "PENDING" && trade.status !== "SCHEDULED") || walletBlocksAction) return false;
-      if (trade.sellerIsWallet) return wallet.accountId !== "" && wallet.accountId === market?.walletSeller?.accountId;
-      return true;
-    },
-    [walletBlocksAction, wallet.accountId, market?.walletSeller?.accountId],
-  );
-
-  const yourTurnTrade = useMemo(
-    () => trades.find(t => t.status === "PENDING" && canSign(t)) ?? null,
-    [trades, canSign],
-  );
-
-  const walletState = useMemo(() => {
-    if (!wallet.isConfigured) return "Connect HashPack to continue (set NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID first).";
-    if (!wallet.isConnected) return "Connect HashPack to continue.";
-    if (!market) return "Set up the market, then onboard your wallet.";
-    const onboarded = walletRole === "seller" ? market.walletSeller : market.walletBuyer;
-    if (onboarded && onboarded.accountId !== wallet.accountId) {
-      return `Switch HashPack to ${onboarded.accountId}, the account onboarded as ${walletRole === "seller" ? "Seller" : "Buyer"}, or onboard this one.`;
-    }
-    if (!onboardedForRole)
-      return `Onboard your wallet to take the ${walletRole === "seller" ? "Seller" : "Buyer"} role.`;
-    if (walletRole === "seller") {
-      const pending = market.trades.find(t => t.sellerIsWallet && (t.status === "PENDING" || t.status === "SCHEDULED"));
-      return pending ? "Waiting for the Buyer to sign." : "Propose a trade as Seller.";
-    }
-    const mine = market.trades.find(t => t.buyerIsWallet);
-    if (!mine) return "Waiting for a trade to be proposed.";
-    if (mine.status === "PENDING") return "Sign the trade as Buyer.";
-    if (mine.status === "SETTLED") return "Trade settled. Propose another trade when ready.";
-    if (mine.status === "REJECTED") return `Trade rejected (${mine.settlementResult}); nothing moved.`;
-    return "Propose another trade when ready.";
-  }, [wallet.isConfigured, wallet.isConnected, wallet.accountId, market, onboardedForRole, walletRole]);
+  if (!state) {
+    return <p className="text-sm text-base-content/60">Reading the market…</p>;
+  }
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      <div className="flex flex-col gap-6">
-        <section>
-          <p className="text-base-content/80 m-0 max-w-4xl">
-            Delivery-versus-payment (DvP) settles a security-for-stablecoin trade in a single Hedera transaction: a
-            scheduled transfer carrying both legs. Either the security and the stablecoin both change hands, or neither
-            does — there is no escrow contract, just a native transaction the Seller and the Buyer sign at different
-            times.
+    <div className="grid gap-4 lg:grid-cols-2 items-start">
+      <div className="flex flex-col gap-4">
+        <SetupPanel desk={desk} />
+        {state.setupComplete && <TradeTicket desk={desk} onResult={setLastResult} />}
+        <WalletCard state={state} />
+        {lastResult && (
+          <p className="m-0 text-xs text-base-content/70" role="status">
+            {lastResult}
           </p>
-        </section>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          {/* Left column: what the learner does. */}
-          <div className="flex flex-col gap-6 min-w-0">
-            <section className="card bg-base-100 shadow-md border border-base-300 p-6 w-full">
-              <h2 className="font-bold text-lg mb-1">Signing</h2>
-              <p className="text-xs text-base-content/70 mb-3">
-                Choose whether demo accounts or your HashPack wallet sign.
-              </p>
-              <label className="block text-sm text-base-content/70 mb-1" htmlFor="signing-mode">
-                Sign with
-              </label>
-              <select
-                id="signing-mode"
-                className="select select-bordered w-full max-w-xs mb-4"
-                value={signingMode}
-                onChange={e => setSigningMode(e.target.value as SigningMode)}
-              >
-                <option value="demo">Demo accounts</option>
-                <option value="hashpack">HashPack</option>
-              </select>
+        )}
+      </div>
 
-              {signingMode === "hashpack" && (
-                <div className="flex flex-col gap-3 items-start">
-                  {!wallet.isConfigured && (
-                    <p id="wallet-config-error" className="text-warning text-sm">
-                      Set NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID to enable HashPack.
-                    </p>
-                  )}
-
-                  <button
-                    id="connect-hashpack"
-                    className="btn btn-primary btn-sm"
-                    disabled={!wallet.isConfigured || busyWallet}
-                    onClick={handleConnectToggle}
-                  >
-                    {busyWallet ? "Working…" : wallet.isConnected ? "Disconnect HashPack" : "Connect HashPack"}
-                  </button>
-
-                  {wallet.isConnected && (
-                    <p>
-                      Connected account:{" "}
-                      <HashScanLink htmlId="wallet-account-id" hederaId={wallet.accountId} kind="account" />
-                    </p>
-                  )}
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm text-base-content/70" htmlFor="wallet-role">
-                      Wallet acts as
-                    </label>
-                    <select
-                      id="wallet-role"
-                      className="select select-bordered w-full max-w-xs"
-                      value={walletRole}
-                      onChange={e => setWalletRole(e.target.value as WalletRole)}
-                    >
-                      <option value="seller">Seller</option>
-                      <option value="buyer">Buyer</option>
-                    </select>
-                  </div>
-
-                  <button
-                    id="onboard-wallet"
-                    className="btn btn-secondary btn-sm"
-                    disabled={onboardDisabled}
-                    onClick={handleOnboard}
-                  >
-                    {busyOnboard ? "Onboarding…" : "Onboard wallet"}
-                  </button>
-
-                  <p id="wallet-state" className="text-sm text-base-content/70">
-                    {walletState}
-                  </p>
-                </div>
-              )}
-            </section>
-
-            <SetupPanel configLoaded={configLoaded} operatorConfigured={operatorConfigured} onMarket={setMarket} />
-
-            {market && (
-              <TradeTicket
-                market={market}
-                busy={busyPropose}
-                onPropose={handlePropose}
-                walletSellerReady={walletSellerReady}
-              >
-                {newestTrade && (
-                  <div className="text-sm flex flex-col gap-1">
-                    <span>
-                      Schedule: <HashScanLink htmlId="schedule-id" hederaId={newestTrade.scheduleId} kind="schedule" />
-                    </span>
-                    <span>
-                      Status: <span id="trade-status">{newestTrade.status}</span>
-                    </span>
-                    {newestTrade.settlementResult && (
-                      <span>
-                        Settlement result: <span id="settlement-result">{newestTrade.settlementResult}</span>
-                      </span>
-                    )}
-                    <TradeChanges trade={newestTrade} />
-                  </div>
-                )}
-              </TradeTicket>
-            )}
-          </div>
-
-          {/* Right column: what the network shows. Scrolls with the page, alongside the left column. */}
-          <div className="flex flex-col gap-6 min-w-0">
-            {!market && (
-              <section className="card border border-dashed border-base-300 p-6 w-full text-sm text-base-content/70">
-                <h2 className="font-bold text-lg mb-1 text-base-content">Market, trades and audit log</h2>
-                <span>
-                  Set up a market to see its token balances here, the trades you propose and their status, and the audit
-                  log of every trade event read back from the mirror node.
-                </span>
-              </section>
-            )}
-            {market && (
-              <section
-                id="market"
-                className="card bg-base-100 shadow-md border border-base-300 p-6 w-full overflow-x-auto scroll-mt-24"
-              >
-                <h2 className="font-bold text-lg mb-1">Market</h2>
-                <p className="text-xs text-base-content/70 mb-3">
-                  Live token ids and balances, read from the mirror node.
-                </p>
-                <div className="flex flex-wrap gap-6 mb-4 text-sm">
-                  <span>
-                    Security token:{" "}
-                    <HashScanLink htmlId="security-token-id" hederaId={market.securityTokenId} kind="token" />
-                  </span>
-                  <span>
-                    Stablecoin: <HashScanLink htmlId="payment-token-id" hederaId={market.paymentTokenId} kind="token" />
-                  </span>
-                </div>
-                <table className="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Party</th>
-                      <th>Account</th>
-                      <th>Security</th>
-                      <th>Stablecoin</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Seller</td>
-                      <td>
-                        <HashScanLink htmlId="seller-account-id" hederaId={market.seller.accountId} kind="account" />
-                      </td>
-                      <td id="balance-seller-security">{market.seller.balances.security}</td>
-                      <td id="balance-seller-payment">{market.seller.balances.payment}</td>
-                    </tr>
-                    <tr>
-                      <td>Buyer</td>
-                      <td>
-                        <HashScanLink htmlId="buyer-account-id" hederaId={market.buyer.accountId} kind="account" />
-                      </td>
-                      <td id="balance-buyer-security">{market.buyer.balances.security}</td>
-                      <td id="balance-buyer-payment">{market.buyer.balances.payment}</td>
-                    </tr>
-                    <tr>
-                      <td>Unverified buyer</td>
-                      <td>
-                        <HashScanLink
-                          htmlId="unverified-buyer-account-id"
-                          hederaId={market.unverifiedBuyer.accountId}
-                          kind="account"
-                        />
-                      </td>
-                      <td id="balance-unverified-buyer-security">{market.unverifiedBuyer.balances.security}</td>
-                      <td id="balance-unverified-buyer-payment">{market.unverifiedBuyer.balances.payment}</td>
-                    </tr>
-                    {market.walletSeller && (
-                      <tr>
-                        <td>Wallet (Seller)</td>
-                        <td>
-                          <HashScanLink hederaId={market.walletSeller.accountId} kind="account" />
-                        </td>
-                        <td>{market.walletSeller.balances.security}</td>
-                        <td>{market.walletSeller.balances.payment}</td>
-                      </tr>
-                    )}
-                    {market.walletBuyer && (
-                      <tr>
-                        <td>Wallet (Buyer)</td>
-                        <td>
-                          <HashScanLink hederaId={market.walletBuyer.accountId} kind="account" />
-                        </td>
-                        <td>{market.walletBuyer.balances.security}</td>
-                        <td>{market.walletBuyer.balances.payment}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-                <span id="starting-position" className="text-xs text-base-content/60 mt-3">
-                  Seller starts with {SELLER_INITIAL_SECURITY} security. Buyer starts with{" "}
-                  {BUYER_INITIAL_PAYMENT.toLocaleString()} stablecoin. Unverified buyer starts with{" "}
-                  {UNVERIFIED_BUYER_INITIAL_PAYMENT.toLocaleString()} stablecoin. A trade moves tokens between parties;
-                  it never creates any.
-                </span>
-              </section>
-            )}
-
-            {market && (
-              <section className="card bg-base-100 shadow-md border border-base-300 p-6 w-full">
-                <h2 className="font-bold text-lg mb-1">Trades</h2>
-                <p className="text-xs text-base-content/70 mb-3">Every trade of this market, newest first.</p>
-                <TradesList
-                  trades={trades}
-                  yourTurnScheduleId={yourTurnTrade?.scheduleId ?? null}
-                  busyScheduleId={busyAction?.scheduleId ?? null}
-                  canSign={canSign}
-                  canCancel={canCancel}
-                  onSign={handleSign}
-                  onCancel={handleCancel}
-                />
-              </section>
-            )}
-
-            {market && (
-              <section className="card bg-base-100 shadow-md border border-base-300 p-6 w-full">
-                <h2 className="font-bold text-lg mb-1">Audit log</h2>
-                <AuditLog entries={auditEntries} topicId={auditTopicId} />
-              </section>
-            )}
-          </div>
-        </div>
+      <div className="flex flex-col gap-4">
+        <MarketCard state={state} />
+        {state.parties.length > 0 ? (
+          <Card
+            title="The parties"
+            caption="Free is what this party can still move; held is what a pledge has committed to a trade."
+          >
+            <div className="overflow-x-auto">
+              <table className="table table-sm m-0">
+                <thead>
+                  <tr>
+                    <th>Party</th>
+                    <th className="text-right">Security</th>
+                    <th className="text-right">Cash</th>
+                  </tr>
+                </thead>
+                <tbody id="parties">
+                  {state.parties.map(party => (
+                    <PartyRow key={party.id} party={party} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p id="starting-position" className="m-0 text-xs text-base-content/60">
+              Setup gives the Seller 200 security and no cash, the Buyer 20000 cash and no security, and the Unverified
+              Buyer 10000 cash, no security and no KYC on the security.
+            </p>
+          </Card>
+        ) : (
+          <Card title="The parties" caption="Who trades on this desk.">
+            <p className="m-0 text-sm text-base-content/70">
+              The Seller, the Buyer and an Unverified Buyer appear here once the market exists, each with both balances,
+              free and held.
+            </p>
+          </Card>
+        )}
+        <TradesList desk={desk} onResult={setLastResult} />
+        <HistoryCard state={state} />
       </div>
     </div>
   );
-};
+}

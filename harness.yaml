@@ -1,5 +1,9 @@
-# Root scripts delegate to @sh/nextjs; the template has no contracts package and no test script.
+# Root scripts delegate to the workspaces; the settlement contract lives in packages/foundry.
 install: yarn install
-build: yarn next:build
+# foundry:compile first: the desk deploys the settlement contract itself at setup, so the Next
+# build needs its artifact to exist.
+build: yarn foundry:compile && yarn next:build
+# forge test against mocks of both tokens: no network.
+test: yarn foundry:test
 # next:dev runs `next dev` and keeps running; it inherits HEDERA_OPERATOR_ID/KEY from the harness.
 serve: yarn next:dev

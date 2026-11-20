@@ -1,13 +1,13 @@
 {
-  "name": "dvp-settlement",
-  "description": "Settle a trade delivery-versus-payment on Hedera: a security leg and a stablecoin leg in one scheduled native transfer. No contracts.",
+  "name": "dvp-settlement-evm",
+  "description": "Settle a trade delivery-versus-payment through contracts on Hedera: both legs are encumbered where they sit by Asset Tokenization Studio and Stablecoin Studio holds, and one settlement contract executes them together or not at all.",
   "create-scaffold-hbar": {
     "capabilities": {
       "frontend": [
         "nextjs-app"
       ],
       "solidityFramework": [
-        "none"
+        "foundry"
       ],
       "packageManager": [
         "yarn",
@@ -16,7 +16,7 @@
     },
     "defaults": {
       "frontend": "nextjs-app",
-      "solidityFramework": "none",
+      "solidityFramework": "foundry",
       "packageManager": "yarn"
     },
     "outro": {

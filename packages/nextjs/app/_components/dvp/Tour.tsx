@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AuditLog } from "./AuditLog";
-import { HashScanLink } from "./HashScanLink";
 import { SetupPanel } from "./SetupPanel";
 import {
   AttackOutcome,
@@ -10,151 +8,119 @@ import {
   Label,
   MarketStrip,
   Panel,
+  PledgeCard,
   Refusal,
-  SignaturesCard,
   StepCard,
-  type TourResult,
   TxLink,
   UnderTheHood,
 } from "./TourParts";
-import { type Terms, TradeTicket } from "./TradeTicket";
+import { TradeTicket } from "./TradeTicket";
 import { TradesList } from "./TradesList";
-import { useMarket } from "./useMarket";
-import * as dvp from "~~/services/hedera/dvpClient";
-import {
-  BUYER_INITIAL_PAYMENT,
-  type MarketSnapshot,
-  SELLER_INITIAL_SECURITY,
-  type TradeSnapshot,
-  UNVERIFIED_BUYER_INITIAL_PAYMENT,
-} from "~~/services/hedera/types";
-import { notification } from "~~/utils/scaffold-hbar/notification";
+import type { DeskResult, DvpDeskHook } from "./useDesk";
+import type { AttackResult, AttackType } from "~~/services/dvp/attacks";
+import type { DeskView, TradeView } from "~~/services/dvp/types";
 
-type Stage = "setup" | "propose" | "sign" | "break" | "trades";
+type Stage = "setup" | "propose" | "lock" | "settle" | "break" | "trades";
 type Chapter = "break" | "trades";
 
 const STEPS: { stage: Stage; label: string }[] = [
   { stage: "setup", label: "Set up" },
   { stage: "propose", label: "Propose" },
-  { stage: "sign", label: "Sign" },
+  { stage: "lock", label: "Lock" },
+  { stage: "settle", label: "Settle" },
   { stage: "break", label: "Break it" },
   { stage: "trades", label: "More trades" },
 ];
 const TOTAL = STEPS.length;
-const QUANTITY = 100;
-const PRICE = 10000;
 
-const errorMessage = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
-
-/** The tour's own trade, while it waits for the Buyer: the demo Seller's, to the demo Buyer, on signature. */
-const waitingForBuyer = (market: MarketSnapshot) =>
-  market.trades.find(
-    t =>
-      t.status === "PENDING" &&
-      t.settlementMode === "onSignature" &&
-      t.buyerChoice === "buyer" &&
-      !t.sellerIsWallet &&
-      !t.buyerIsWallet,
-  ) ?? null;
+/** The trade the tour has in hand: the newest one still open. */
+const openTrade = (state: DeskView): TradeView | null =>
+  state.trades.find(trade => trade.state === "AWAITING PLEDGES" || trade.state === "READY") ?? null;
 
 /**
- * The step follows the market, not this tab, so a reload or a detour through the Sandbox lands on the right one. Only
- * which of the last two chapters the reader is on is their own.
+ * The step follows the market, not this tab, so a reload or a detour through the Sandbox lands on
+ * the right one. Only which of the last two chapters the reader is on is their own.
  */
-function stageOf(market: MarketSnapshot | null, chapter: Chapter): Stage {
-  if (!market) return "setup";
-  if (!market.trades.some(t => t.status === "SETTLED")) return waitingForBuyer(market) ? "sign" : "propose";
-  return chapter;
+function stageOf(state: DeskView | null, settingUp: boolean, chapter: Chapter): Stage {
+  if (!state || !state.setupComplete || settingUp) return "setup";
+  if (state.trades.some(trade => trade.state === "SETTLED")) return chapter;
+  const open = openTrade(state);
+  if (!open) return "propose";
+  return open.securityPledged && open.cashPledged ? "settle" : "lock";
 }
 
 type Ctx = {
-  market: MarketSnapshot;
-  busyKey: string | null;
-  results: Record<string, TourResult | null>;
-  go: (key: string, run: () => Promise<{ market: MarketSnapshot; result: TourResult }>) => Promise<void>;
+  state: DeskView;
+  desk: DvpDeskHook;
+  results: Record<string, DeskResult | null>;
+  run: (key: string, action: () => Promise<DeskResult>) => Promise<DeskResult>;
 };
 
-export function Tour() {
-  const { market, setMarket, loaded, auditEntries, auditTopicId, configLoaded, operatorConfigured } = useMarket();
+export function Tour({ desk }: { desk: DvpDeskHook }) {
+  const { state, isSettingUp } = desk;
   const [chapter, setChapter] = useState<Chapter>("break");
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, TourResult | null>>({});
-  const [flash, setFlash] = useState<{ text: string; ok: boolean; transaction: string | null } | null>(null);
+  const [results, setResults] = useState<Record<string, DeskResult | null>>({});
+  const [flash, setFlash] = useState<{ text: string; result: DeskResult } | null>(null);
 
   // A fresh market forgets the last one's results and starts its chapters over.
-  const securityTokenId = market?.securityTokenId ?? null;
+  const marketId = state?.market.settlement?.contractId ?? null;
   useEffect(() => {
     setResults({});
     setFlash(null);
     setChapter("break");
-  }, [securityTokenId]);
+  }, [marketId]);
 
-  const go: Ctx["go"] = async (key, run) => {
-    setBusyKey(key);
+  const run = async (key: string, action: () => Promise<DeskResult>) => {
     setResults(previous => ({ ...previous, [key]: null }));
     setFlash(null);
-    let result: TourResult;
-    try {
-      const outcome = await run();
-      setMarket(outcome.market);
-      result = outcome.result;
-    } catch (e) {
-      result = { ok: false, result: "Error", message: errorMessage(e), transaction: null };
-    }
+    desk.clearMessage();
+    const result = await action();
     setResults(previous => ({ ...previous, [key]: result }));
-    setBusyKey(null);
-    // Signing moves the tour on, so the settlement is announced above the next step.
-    if (key === "sign" && result.result !== "Error")
-      setFlash({
-        text: result.ok
-          ? "Settled: both legs moved in one transaction."
-          : `The network refused the settlement: ${result.result}. Nothing moved.`,
-        ok: result.ok,
-        transaction: result.transaction,
-      });
+    return result;
   };
 
-  // Moving between chapters retires the last announcement: it belonged to the step it was made on.
   const pick = (next: Chapter) => {
     setChapter(next);
     setFlash(null);
+    desk.clearMessage();
   };
 
-  const stage = stageOf(market, chapter);
-  const ctx = market ? { market, busyKey, results, go } : null;
+  const stage = stageOf(state, isSettingUp, chapter);
+  const ctx: Ctx | null = state && state.market.settlement ? { state, desk, results, run } : null;
 
   return (
     <div className="flex flex-col gap-4">
-      <Stepper stage={loaded ? stage : null} pickable={stage === "break" || stage === "trades"} onPick={pick} />
+      <Stepper stage={state ? stage : null} pickable={stage === "break" || stage === "trades"} onPick={pick} />
       {flash ? (
-        <div role="status" className={`alert ${flash.ok ? "alert-success" : "alert-error"} text-sm py-2`}>
+        <div role="status" className={`alert ${flash.result.ok ? "alert-success" : "alert-error"} text-sm py-2`}>
           <span className="min-w-0 [overflow-wrap:anywhere]">
-            {flash.text}{" "}
-            {flash.transaction ? <TxLink transaction={flash.transaction}>The settlement on HashScan</TxLink> : null}
+            {flash.text} {flash.result.txHash ? <TxLink hash={flash.result.txHash} /> : null}
           </span>
         </div>
       ) : null}
-      {ctx ? <MarketStrip market={ctx.market} /> : null}
-      {!loaded ? (
+      {desk.message ? (
+        <div role="alert" className="alert alert-error text-sm py-2">
+          <span className="min-w-0 [overflow-wrap:anywhere]">{desk.message}</span>
+        </div>
+      ) : null}
+      {ctx && stage !== "setup" ? <MarketStrip state={ctx.state} /> : null}
+      {!state ? (
         <div className="flex items-center gap-3 text-base-content/70">
           <span className="loading loading-spinner loading-sm" aria-hidden />
           Reading the market…
         </div>
-      ) : !ctx ? (
-        <SetupScreen configLoaded={configLoaded} operatorConfigured={operatorConfigured} onMarket={setMarket} />
+      ) : stage === "setup" || !ctx ? (
+        <SetupScreen desk={desk} state={state} />
       ) : stage === "propose" ? (
-        <ProposeScreen ctx={ctx} />
-      ) : stage === "sign" ? (
-        <SignScreen ctx={ctx} trade={waitingForBuyer(ctx.market)!} />
+        <ProposeScreen ctx={ctx} announce={setFlash} />
+      ) : stage === "lock" ? (
+        <LockScreen ctx={ctx} />
+      ) : stage === "settle" ? (
+        <SettleScreen ctx={ctx} announce={setFlash} />
       ) : stage === "break" ? (
         <BreakScreen ctx={ctx} onNext={() => pick("trades")} />
       ) : (
-        <TradesScreen
-          market={ctx.market}
-          setMarket={setMarket}
-          auditEntries={auditEntries}
-          auditTopicId={auditTopicId}
-        />
+        <TradesScreen ctx={ctx} />
       )}
     </div>
   );
@@ -211,362 +177,372 @@ function Stepper({
   );
 }
 
-function SetupScreen({
-  configLoaded,
-  operatorConfigured,
-  onMarket,
-}: {
-  configLoaded: boolean;
-  operatorConfigured: boolean;
-  onMarket: (market: MarketSnapshot) => void;
-}) {
+function SetupScreen({ desk, state }: { desk: DvpDeskHook; state: DeskView }) {
   return (
     <Columns
       main={
-        <SetupPanel
-          configLoaded={configLoaded}
-          operatorConfigured={operatorConfigured}
-          onMarket={onMarket}
-          step={{ label: `Step 1 of ${TOTAL} · Issuer`, title: "Open the market" }}
-        />
+        <>
+          <StepCard step={1} total={TOTAL} who="Issuer" title="Deploy the market and the contract that settles it">
+            <p className="m-0 text-base-content/80 max-w-2xl">
+              One press creates three demo parties, deploys a security through the Asset Tokenization Studio factory and
+              a stablecoin through the Stablecoin Studio factory — both already on testnet — then deploys this
+              repo&apos;s settlement contract against the two of them and deals out a starting position. The Seller gets
+              200 security, the Buyer 20000 cash, and an Unverified Buyer gets 10000 cash and no KYC on the security.
+            </p>
+            <p className="m-0 text-sm text-base-content/70 max-w-2xl">
+              Connect a wallet <strong>before</strong> you press it to take the Buyer&apos;s side with your own testnet
+              account: pledging the cash is then one ordinary transaction your wallet signs and pays for.
+            </p>
+          </StepCard>
+          <SetupPanel desk={desk} />
+        </>
       }
       aside={
-        <>
-          <Panel title="Who is who" caption="Three demo accounts the app signs for, and you as the issuer.">
-            <ul className="m-0 pl-5 list-disc flex flex-col gap-1.5 text-sm">
-              <li>
-                <strong>Issuer</strong>: your operator account. Creates both tokens, grants KYC, pays every fee.
-              </li>
-              <li>
-                <strong>Seller</strong>: starts with {SELLER_INITIAL_SECURITY} security.
-              </li>
-              <li>
-                <strong>Buyer</strong>: starts with {BUYER_INITIAL_PAYMENT.toLocaleString()} stablecoin, KYC granted.
-              </li>
-              <li>
-                <strong>Unverified Buyer</strong>: starts with {UNVERIFIED_BUYER_INITIAL_PAYMENT.toLocaleString()}{" "}
-                stablecoin, no KYC on the security.
-              </li>
-            </ul>
-          </Panel>
-          <Panel title="What happens next" caption="Four steps, one action each.">
-            <ol className="m-0 pl-5 list-decimal flex flex-col gap-1.5 text-sm">
-              <li>
-                <strong>Propose</strong>: the Seller proposes and signs a trade. Nothing moves yet.
-              </li>
-              <li>
-                <strong>Sign</strong>: the Buyer signs, and both legs settle in one transaction.
-              </li>
-              <li>
-                <strong>Break it</strong>: three trades that should fail. Each fails whole.
-              </li>
-              <li>
-                <strong>More trades</strong>: any terms, settling now or at a set time.
-              </li>
-            </ol>
-          </Panel>
-        </>
+        <Panel title="What happens next" caption="Five steps, one action each.">
+          <ul className="m-0 pl-5 flex flex-col gap-2 text-sm">
+            <li>
+              <strong>Propose</strong>: the Seller records the terms. Nothing moves and nothing is pledged.
+            </li>
+            <li>
+              <strong>Lock</strong>: each side pledges its own leg. Both balances fall and neither token changes hands.
+            </li>
+            <li>
+              <strong>Settle</strong>: one call executes both holds, in one transaction.
+            </li>
+            <li>
+              <strong>Break it</strong>: four ways to cheat the settlement. Each should be refused.
+            </li>
+            <li>
+              <strong>More trades</strong>: a timed settlement, a cancellation, the Unverified Buyer.
+            </li>
+          </ul>
+          <p className="m-0 text-xs text-base-content/60">
+            {state.wallet.kind === "none"
+              ? "No wallet is connected, so all three parties are demo accounts this desk signs for."
+              : state.wallet.kind === "buyer"
+                ? "The connected wallet is this market's Buyer."
+                : "A wallet is connected; connect it before setup to be the Buyer."}
+          </p>
+        </Panel>
       }
     />
   );
 }
 
-const SCHEDULE_CODE = `const settlement = new TransferTransaction()
-  .addTokenTransfer(security, seller, -${QUANTITY})     // delivery
-  .addTokenTransfer(security, buyer, ${QUANTITY})
-  .addTokenTransfer(stablecoin, buyer, -${PRICE})  // payment
-  .addTokenTransfer(stablecoin, seller, ${PRICE});
+const TOUR_QUANTITY = "100";
+const TOUR_PRICE = "10000";
 
-new ScheduleCreateTransaction()
-  .setScheduledTransaction(settlement)
-  .setAdminKey(sellerKey)                   // only the Seller can cancel
-  .setExpirationTime(now + 30 minutes)
-  .sign(sellerKey)                          // the first of the two signatures`;
-
-function ProposeScreen({ ctx }: { ctx: Ctx }) {
-  const { busyKey, results, go } = ctx;
+function ProposeScreen({
+  ctx,
+  announce,
+}: {
+  ctx: Ctx;
+  announce: (flash: { text: string; result: DeskResult } | null) => void;
+}) {
+  const { state, desk, results, run } = ctx;
+  const result = results["propose"] ?? null;
   return (
     <Columns
       main={
-        <>
-          <StepCard
-            step={2}
-            total={TOTAL}
-            who="Seller"
-            title={`Propose: ${QUANTITY} security for ${PRICE.toLocaleString()} stablecoin`}
-          >
-            <p className="m-0 text-base-content/80 max-w-2xl">
-              The Seller writes both legs into one transfer: {QUANTITY} security from the Seller to the Buyer, and{" "}
-              {PRICE.toLocaleString()} stablecoin from the Buyer to the Seller. It wraps the transfer in a scheduled
-              transaction and signs it. The Buyer has not signed, so the network holds it and nothing moves.
-            </p>
-            <div className="flex flex-wrap gap-3 items-center">
-              <button
-                id="tour-propose"
-                type="button"
-                className="btn btn-primary"
-                disabled={busyKey !== null}
-                onClick={() =>
-                  void go("propose", async () => {
-                    const market = await dvp.proposeTrade(QUANTITY, PRICE, "buyer", "onSignature");
-                    return { market, result: { ok: true, result: "SUCCESS", message: "", transaction: null } };
-                  })
-                }
-              >
-                {busyKey === "propose" ? <span className="loading loading-spinner loading-xs" aria-hidden /> : null}
-                Propose and sign as Seller
-              </button>
-            </div>
-            <Refusal id="tour-propose-error" result={results.propose ?? null} />
-          </StepCard>
-          <UnderTheHood title="the calls this step makes" code={SCHEDULE_CODE} />
-        </>
-      }
-      aside={<SignaturesCard trade={null} quantity={QUANTITY} price={PRICE} />}
-    />
-  );
-}
-
-function SignScreen({ ctx, trade }: { ctx: Ctx; trade: TradeSnapshot }) {
-  const { busyKey, results, go } = ctx;
-  return (
-    <Columns
-      main={
-        <>
-          <StepCard step={3} total={TOTAL} who="Buyer" title="Sign as the Buyer: both legs settle together">
-            <p className="m-0 text-base-content/80 max-w-2xl">
-              Schedule <HashScanLink hederaId={trade.scheduleId} kind="schedule" /> holds the Seller&apos;s signature.
-              Nothing has moved: the balances above are where setup left them. The Buyer&apos;s signature is the last
-              one the transfer needs, so the network runs it the moment it lands, both legs in one transaction.
-            </p>
-            <div className="flex flex-wrap gap-3 items-center">
-              <button
-                id="tour-sign"
-                type="button"
-                className="btn btn-primary"
-                disabled={busyKey !== null}
-                onClick={() =>
-                  void go("sign", async () => {
-                    const market = await dvp.signTrade(trade.scheduleId);
-                    const settled = market.trades.find(t => t.scheduleId === trade.scheduleId);
-                    const ok = settled?.status === "SETTLED";
-                    return {
-                      market,
-                      result: {
-                        ok,
-                        result: settled?.settlementResult ?? settled?.status ?? "UNKNOWN",
-                        message: "",
-                        transaction: settled?.executedAt ?? null,
-                      },
-                    };
-                  })
-                }
-              >
-                {busyKey === "sign" ? <span className="loading loading-spinner loading-xs" aria-hidden /> : null}
-                Sign as Buyer
-              </button>
-            </div>
-            <Refusal id="tour-sign-error" result={results.sign ?? null} />
-          </StepCard>
+        <StepCard step={2} total={TOTAL} who="Seller" title={`Sell ${TOUR_QUANTITY} security for ${TOUR_PRICE} cash`}>
+          <p className="m-0 text-base-content/80 max-w-2xl">
+            The Seller records the terms on the settlement contract: who buys, how much, at what price, and that it may
+            settle as soon as both legs are pledged. This moves nothing — no balance changes, and neither leg is
+            encumbered yet.
+          </p>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              id="tour-propose"
+              type="button"
+              className="btn btn-primary"
+              disabled={desk.busyKey !== null}
+              onClick={async () => {
+                const r = await run("propose", () =>
+                  desk.propose({
+                    quantity: TOUR_QUANTITY,
+                    price: TOUR_PRICE,
+                    buyer: "buyer",
+                    settlementMode: "immediate",
+                    delayMinutes: "2",
+                  }),
+                );
+                if (r.ok) announce({ text: `Proposed as trade ${r.tradeId}. Nothing has moved.`, result: r });
+              }}
+            >
+              {desk.busyKey === "propose" && <span className="loading loading-spinner loading-xs" />}
+              Propose as Seller
+            </button>
+          </div>
+          <Refusal id="tour-propose-result" result={result} />
           <UnderTheHood
-            title="the call this step makes"
-            code={`new ScheduleSignTransaction()
-  .setScheduleId("${trade.scheduleId}")
-  .sign(buyerKey)   // the last signature: the network executes the transfer now
-// If either leg fails (no KYC, not enough stablecoin), the whole transfer fails and nothing moves.`}
+            title="one call, no token touched"
+            code={`settlement.propose(
+  buyer,        // the Buyer's address
+  ${TOUR_QUANTITY},          // security units
+  ${TOUR_PRICE} * 100,   // cash, in the stablecoin's 2 decimals
+  0             // notBefore: as soon as both legs are pledged
+)`}
           />
-        </>
+        </StepCard>
       }
-      aside={<SignaturesCard trade={trade} quantity={trade.quantity} price={trade.price} />}
+      aside={<PledgeCard trade={null} state={state} />}
     />
   );
 }
 
-const ATTACKS: { type: string; who: string; title: string; text: string; meaning: string; code: string }[] = [
+function LockScreen({ ctx }: { ctx: Ctx }) {
+  const { state, desk, results, run } = ctx;
+  const trade = openTrade(state);
+  if (!trade) return null;
+  const walletPledges = state.wallet.kind === "buyer" && state.parties.find(p => p.id === trade.buyer)?.isWallet;
+
+  return (
+    <Columns
+      main={
+        <StepCard step={3} total={TOTAL} who="Seller, then Buyer" title="Pledge both legs, without moving either">
+          <p className="m-0 text-base-content/80 max-w-2xl">
+            Each side creates a <em>hold</em> on its own token: the amount, the settlement contract as the only address
+            that can move it, and the counterparty as the only address it can move to. Watch each party&apos;s free
+            balance fall and its held balance rise by the same amount in the strip above — committed, and not delivered.
+            The security stays in the Seller&apos;s own account, excluded from its balance; the cash moves into the
+            stablecoin&apos;s custody, because HTS has no way to encumber units in place.
+          </p>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              id="tour-lock-security"
+              type="button"
+              className="btn btn-primary"
+              disabled={trade.securityPledged || desk.busyKey !== null}
+              onClick={() => run("lock-security", () => desk.pledgeSecurity(trade.tradeId))}
+            >
+              {desk.busyKey === `pledge-security-${trade.tradeId}` && (
+                <span className="loading loading-spinner loading-xs" />
+              )}
+              {trade.securityPledged ? "Security pledged ✓" : "Pledge the security as Seller"}
+            </button>
+            <button
+              id="tour-lock-cash"
+              type="button"
+              className="btn btn-primary"
+              disabled={trade.cashPledged || desk.busyKey !== null}
+              onClick={() =>
+                run("lock-cash", () =>
+                  walletPledges ? desk.pledgeAsWallet(trade.tradeId) : desk.pledgeCash(trade.tradeId),
+                )
+              }
+            >
+              {(desk.busyKey === `pledge-cash-${trade.tradeId}` || desk.busyKey === `wallet-${trade.tradeId}`) && (
+                <span className="loading loading-spinner loading-xs" />
+              )}
+              {trade.cashPledged
+                ? "Cash pledged ✓"
+                : walletPledges
+                  ? "Pledge the cash from my wallet"
+                  : "Pledge the cash as Buyer"}
+            </button>
+          </div>
+          <Refusal id="tour-lock-security-result" result={results["lock-security"] ?? null} />
+          <Refusal id="tour-lock-cash-result" result={results["lock-cash"] ?? null} />
+          <UnderTheHood
+            title="a hold on each token, then recorded against the trade"
+            code={`// the Seller, on the security
+security.createHoldByPartition(PARTITION, {
+  amount: ${trade.quantity}, escrow: settlement, to: buyer, expirationTimestamp: …
+})
+settlement.lockSecurity(${trade.tradeId}, holdId)   // reads the hold back and checks it
+
+// the Buyer, on the stablecoin
+cash.createHold({ amount: ${trade.price} * 100, escrow: settlement, to: seller, … })
+settlement.lockCash(${trade.tradeId}, holdId)`}
+          />
+        </StepCard>
+      }
+      aside={<PledgeCard trade={trade} state={state} />}
+    />
+  );
+}
+
+function SettleScreen({
+  ctx,
+  announce,
+}: {
+  ctx: Ctx;
+  announce: (flash: { text: string; result: DeskResult } | null) => void;
+}) {
+  const { state, desk, results, run } = ctx;
+  const trade = openTrade(state);
+  if (!trade) return null;
+
+  return (
+    <Columns
+      main={
+        <StepCard step={4} total={TOTAL} who="Anyone" title="Move both legs in one transaction">
+          <p className="m-0 text-base-content/80 max-w-2xl">
+            Both legs are pledged, so one call executes both holds: the security to the Buyer and the cash to the
+            Seller, in the same transaction. If either leg could not land, the whole call reverts and both pledges stay
+            exactly as they are. Anyone may press it — the terms and both destinations were fixed by the parties
+            themselves.
+          </p>
+          <div className="flex flex-wrap gap-3 items-center">
+            <button
+              id="tour-settle"
+              type="button"
+              className="btn btn-primary"
+              disabled={!trade.settleable || desk.busyKey !== null}
+              onClick={async () => {
+                const r = await run("settle", () => desk.settle(trade.tradeId));
+                if (r.ok) {
+                  announce({
+                    text: `Trade ${trade.tradeId} settled: ${trade.quantity} security to the Buyer and ${trade.price} cash to the Seller, in one transaction.`,
+                    result: r,
+                  });
+                }
+              }}
+            >
+              {desk.busyKey === `settle-${trade.tradeId}` && <span className="loading loading-spinner loading-xs" />}
+              Settle both legs
+            </button>
+            {!trade.settleable && trade.notBefore > 0 && (
+              <span className="text-sm text-base-content/70">
+                Not before {new Date(trade.notBefore * 1000).toLocaleTimeString(undefined, { timeStyle: "short" })}.
+              </span>
+            )}
+          </div>
+          <Refusal id="tour-settle-result" result={results["settle"] ?? null} />
+          <UnderTheHood
+            title="one call, two holds"
+            code={`settlement.settle(${trade.tradeId})
+  ├─ security.executeHoldByPartition({ seller, holdId }, buyer, ${trade.quantity})
+  └─ cash.executeHold({ buyer, holdId }, seller, ${trade.price} * 100)
+// either reverting reverts both`}
+          />
+        </StepCard>
+      }
+      aside={<PledgeCard trade={trade} state={state} />}
+    />
+  );
+}
+
+type Attack = {
+  type: AttackType;
+  who: string;
+  title: string;
+  text: string;
+  meaning: string;
+  code: string;
+};
+
+const ATTACKS: Attack[] = [
   {
-    type: "no-kyc",
-    who: "Seller and Unverified Buyer",
-    title: "Sell to a buyer without KYC",
-    text: "Sell 10 security for 1,000 stablecoin to the Unverified Buyer, who has no KYC on the security. Both sign.",
-    meaning:
-      "The security leg needs KYC, so it failed, and the stablecoin leg failed with it: the Unverified Buyer kept its stablecoin.",
-    code: "transfer(security, seller → unverifiedBuyer, 10)\ntransfer(stablecoin, unverifiedBuyer → seller, 1000)\n.schedule() · seller signs · buyer signs",
+    type: "settle-one-leg",
+    who: "Anyone",
+    title: "Take delivery without paying",
+    text: "Proposes a small trade, pledges only the security, and settles it. The cash leg is missing.",
+    meaning: "Half a trade is not a trade: the contract will not move one leg without the other.",
+    code: "settlement.settle(id)   // with cashHoldId == 0",
   },
   {
-    type: "short-payment",
-    who: "Seller and Buyer",
-    title: "Pay with money you don't have",
-    text: `Sell 10 security to the Buyer for ${(BUYER_INITIAL_PAYMENT * 5).toLocaleString()} stablecoin, five times what setup gave it. Both sign.`,
+    type: "settle-no-kyc",
+    who: "Anyone",
+    title: "Settle to a buyer who was never verified",
+    text: "Proposes a trade to the Unverified Buyer, pledges both legs in full, and settles it.",
     meaning:
-      "The Buyer cannot cover the payment leg, so it failed, and the delivery leg failed with it: the Seller kept its security.",
-    code: `transfer(security, seller → buyer, 10)\ntransfer(stablecoin, buyer → seller, ${BUYER_INITIAL_PAYMENT * 5})\n.schedule() · seller signs · buyer signs`,
+      "The security cannot land on an unverified holder, and because both legs move in one call, the cash does not move either. The buyer's cash is still its own.",
+    code: "settlement.settle(id)   // security.executeHoldByPartition → InvalidKycStatus",
   },
   {
-    type: "buyer-cancels",
-    who: "Buyer",
-    title: "Cancel someone else's trade",
-    text: "The Seller proposes a trade. Instead of signing it, the Buyer tries to delete the schedule.",
+    type: "seller-reclaims",
+    who: "Seller",
+    title: "Take the pledged security back",
+    text: "Pledges the security to a live trade, then has the Seller try to reclaim its own hold.",
     meaning:
-      "Only the schedule's admin key can delete it, and that key is the Seller's. The desk then cancelled the trade properly, as the Seller.",
-    code: "new ScheduleDeleteTransaction()\n  .setScheduleId(schedule)\n  .sign(buyerKey)   // the admin key is the Seller's",
+      "Only the escrow can release a hold, and the holder's own way out does not open until the hold expires. A pledge is a commitment, not a reservation.",
+    code: "security.reclaimHoldByPartition({ partition, seller, holdId })",
+  },
+  {
+    type: "settle-twice",
+    who: "Anyone",
+    title: "Settle the same trade twice",
+    text: "Settles a trade that has already settled, to be paid for the same security again. Needs a settled trade.",
+    meaning: "A settled trade is finished, and its holds are spent. The contract knows which state it is in.",
+    code: "settlement.settle(id)   // on a trade already settled",
   },
 ];
 
 function BreakScreen({ ctx, onNext }: { ctx: Ctx; onNext: () => void }) {
-  const { busyKey, results, go } = ctx;
-  const tried = ATTACKS.map(attack => results[attack.type]).filter(result => result && result.result !== "Error");
-  const refused = tried.filter(result => result && !result.ok).length;
+  const { desk } = ctx;
+  const [outcomes, setOutcomes] = useState<Record<string, AttackResult | null>>({});
+  const results = ATTACKS.map(attack => outcomes[attack.type] ?? null);
+  const tried = results.filter(r => r && r.outcome !== "blocked").length;
+  const refused = results.filter(r => r?.outcome === "refused").length;
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-4 items-end justify-between">
-        <div className="flex flex-col gap-1 max-w-4xl">
-          <Label>Step 4 of {TOTAL} · optional</Label>
-          <h2 className="m-0 text-xl font-bold">Try to break it</h2>
-          <p className="m-0 text-sm text-base-content/80">
-            Try to move one leg without the other, or undo the other party&apos;s trade. Each attempt is a real
-            transaction: <strong>a refusal is a pass</strong>, and the balances above should not move.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3 items-center">
-          <span role="status" className="badge badge-lg badge-outline">
-            {tried.length} of {ATTACKS.length} tried · {refused} refused
-          </span>
-          <button id="next-trades" type="button" className="btn btn-primary" onClick={onNext}>
-            Next: more trades →
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-        {ATTACKS.map(attack => (
-          <Panel key={attack.type} title={attack.title}>
-            <p className="m-0 text-sm">{attack.text}</p>
-            <pre className="m-0 rounded-box bg-[#11151d] text-[#f0f0f2] px-3 py-2 text-[12px] whitespace-pre-wrap font-mono">
-              {attack.code}
-            </pre>
-            <div className="flex flex-wrap gap-3 items-center justify-between">
+      <StepCard step={5} total={TOTAL} who="You" title="Try to break the settlement">
+        <p className="m-0 text-base-content/80 max-w-3xl">
+          Four ways to come out of this desk with something you are not owed. Each one is a real transaction, sent even
+          though it is going to fail, so you can follow it to HashScan and read the network&apos;s own record of the
+          refusal.
+        </p>
+        <p className="m-0 text-sm text-base-content/70">
+          {tried === 0 ? "None tried yet." : `${refused} of ${tried} tried were refused.`}
+        </p>
+      </StepCard>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {ATTACKS.map(attack => {
+          const result = outcomes[attack.type] ?? null;
+          return (
+            <Panel key={attack.type} title={attack.title} caption={attack.text}>
+              <Label>{attack.who}</Label>
               <button
                 id={attack.type}
                 type="button"
-                className={`btn ${results[attack.type] ? "btn-outline" : "btn-neutral"}`}
-                disabled={busyKey !== null}
-                onClick={() =>
-                  void go(attack.type, async () => {
-                    const { market, ok, result, transaction } = await dvp.runAttack(attack.type);
-                    return { market, result: { ok, result, message: "", transaction } };
-                  })
-                }
+                className="btn btn-outline btn-sm self-start"
+                disabled={desk.busyKey !== null}
+                onClick={async () => {
+                  setOutcomes(previous => ({ ...previous, [attack.type]: null }));
+                  const outcome = await desk.attack(attack.type);
+                  setOutcomes(previous => ({ ...previous, [attack.type]: outcome }));
+                }}
               >
-                {busyKey === attack.type ? <span className="loading loading-spinner loading-xs" aria-hidden /> : null}
-                {results[attack.type] ? "Try again" : "Run this attack"}
+                {desk.busyKey === `attack-${attack.type}` && <span className="loading loading-spinner loading-xs" />}
+                Try it
               </button>
-              <span className="text-xs text-base-content/60">{attack.who}</span>
-            </div>
-            <AttackOutcome
-              id={`${attack.type}-result`}
-              result={results[attack.type] ?? null}
-              meaning={attack.meaning}
-            />
-          </Panel>
-        ))}
+              <AttackOutcome id={`${attack.type}-result`} result={result} meaning={attack.meaning} />
+              <UnderTheHood title="the call" code={attack.code} />
+            </Panel>
+          );
+        })}
       </div>
+
+      <button id="next-trades" type="button" className="btn btn-primary self-start" onClick={onNext}>
+        On to more trades
+      </button>
     </div>
   );
 }
 
-function TradesScreen({
-  market,
-  setMarket,
-  auditEntries,
-  auditTopicId,
-}: {
-  market: MarketSnapshot;
-  setMarket: (market: MarketSnapshot) => void;
-  auditEntries: Parameters<typeof AuditLog>[0]["entries"];
-  auditTopicId: string | null;
-}) {
-  const [busyPropose, setBusyPropose] = useState(false);
-  const [busyScheduleId, setBusyScheduleId] = useState<string | null>(null);
-
-  // The tour signs for the demo parties only; a wallet's side of a trade is the Sandbox's.
-  const canSign = (trade: TradeSnapshot) => trade.status === "PENDING" && !trade.buyerIsWallet;
-  const canCancel = (trade: TradeSnapshot) =>
-    (trade.status === "PENDING" || trade.status === "SCHEDULED") && !trade.sellerIsWallet;
-
-  const run = async (work: () => Promise<MarketSnapshot>, done: string) => {
-    try {
-      setMarket(await work());
-      notification.success(done);
-    } catch (e) {
-      notification.error(errorMessage(e));
-    }
-  };
-
-  const propose = async ({ quantity, price, buyerChoice, settlementMode, settlementDelay }: Terms) => {
-    setBusyPropose(true);
-    await run(
-      () => dvp.proposeTrade(quantity, price, buyerChoice, settlementMode, settlementDelay),
-      "Trade proposed. The demo Seller signed.",
-    );
-    setBusyPropose(false);
-  };
-
-  const act = async (trade: TradeSnapshot, kind: "sign" | "cancel") => {
-    setBusyScheduleId(trade.scheduleId);
-    await run(
-      () => (kind === "sign" ? dvp.signTrade(trade.scheduleId) : dvp.cancelTrade(trade.scheduleId)),
-      kind === "sign" ? "Signed as Buyer." : "Trade cancelled.",
-    );
-    setBusyScheduleId(null);
-  };
-
+function TradesScreen({ ctx }: { ctx: Ctx }) {
+  const { desk } = ctx;
+  const [note, setNote] = useState<string | null>(null);
   return (
-    <Columns
-      wideAside
-      main={
-        <>
-          <div className="flex flex-col gap-1 max-w-4xl">
-            <Label>Step 5 of {TOTAL} · Seller and Buyer</Label>
-            <h2 id="step-title" className="m-0 text-xl font-bold">
-              Trade again
-            </h2>
-            <p className="m-0 text-sm text-base-content/80">
-              Any terms, either buyer. <em>At a set time</em> trades settle by themselves once the Buyer has signed,
-              with no one pressing anything. To sign with HashPack, use the Sandbox.
-            </p>
-          </div>
-          <Panel title="Trades" caption="Every trade of this market, newest first.">
-            <div className="max-h-[18rem] overflow-y-auto">
-              <TradesList
-                trades={market.trades}
-                yourTurnScheduleId={market.trades.find(canSign)?.scheduleId ?? null}
-                busyScheduleId={busyScheduleId}
-                canSign={canSign}
-                canCancel={canCancel}
-                onSign={trade => void act(trade, "sign")}
-                onCancel={trade => void act(trade, "cancel")}
-              />
-            </div>
-          </Panel>
-        </>
-      }
-      aside={
-        <>
-          <TradeTicket
-            market={market}
-            busy={busyPropose}
-            onPropose={propose}
-            caption="The demo Seller signs as you propose."
-          />
-          <details className="card bg-base-100 border border-base-300 shadow-sm">
-            <summary className="cursor-pointer p-5 font-semibold">
-              Audit log · {auditEntries.length} {auditEntries.length === 1 ? "entry" : "entries"}
-            </summary>
-            <div className="px-5 pb-5">
-              <AuditLog entries={auditEntries} topicId={auditTopicId} />
-            </div>
-          </details>
-        </>
-      }
-    />
+    <div className="flex flex-col gap-4">
+      <StepCard step={6} total={TOTAL} who="You" title="Trade again, on your own terms">
+        <p className="m-0 text-base-content/80 max-w-3xl">
+          Propose anything you like: a different size, the Unverified Buyer, or a settlement that cannot happen before a
+          set time. Pledge one leg and cancel to watch it come back. Nothing here needs a new market.
+        </p>
+      </StepCard>
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
+        <TradeTicket desk={desk} onResult={setNote} />
+        <TradesList desk={desk} onResult={setNote} />
+      </div>
+      {note && (
+        <p className="m-0 text-sm text-base-content/70" role="status">
+          {note}
+        </p>
+      )}
+    </div>
   );
 }

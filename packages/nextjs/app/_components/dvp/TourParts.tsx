@@ -1,12 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import NextLink from "next/link";
-import { HashScanLink } from "./HashScanLink";
-import type { MarketSnapshot, PartySnapshot, TradeSnapshot } from "~~/services/hedera/types";
-
-/** What an action in the tour came to: the network's code, or why it did not run (`result: "Error"`). */
-export type TourResult = { ok: boolean; result: string; message: string; transaction: string | null };
+import type { DeskResult } from "./useDesk";
+import type { AttackResult } from "~~/services/dvp/attacks";
+import { hashscanContract, hashscanTransaction } from "~~/services/dvp/hashscan";
+import type { DeskView, PartyView, TradeView } from "~~/services/dvp/types";
 
 export function Label({ children }: { children: ReactNode }) {
   return <p className="m-0 text-xs uppercase tracking-wide text-base-content/60">{children}</p>;
@@ -55,7 +53,7 @@ export function Panel({ title, caption, children }: { title: string; caption?: s
   );
 }
 
-/** The exact network calls behind a step, one click away: the audience is developers. */
+/** The exact calls behind a step, one click away: the audience is developers. */
 export function UnderTheHood({ title, code }: { title: string; code: string }) {
   return (
     <details className="rounded-box bg-[#11151d] text-[#f0f0f2] px-4 py-3">
@@ -65,29 +63,37 @@ export function UnderTheHood({ title, code }: { title: string; code: string }) {
   );
 }
 
-/** `wideAside` makes room for a form in the side column. */
-export function Columns({ main, aside, wideAside }: { main: ReactNode; aside: ReactNode; wideAside?: boolean }) {
+export function Columns({ main, aside }: { main: ReactNode; aside: ReactNode }) {
   return (
     <div className="flex flex-wrap gap-4 items-start">
       <div className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">{main}</div>
-      <aside className={`${wideAside ? "flex-[1_1_448px]" : "flex-[1_1_320px]"} min-w-0 flex flex-col gap-4`}>
-        {aside}
-      </aside>
+      <aside className="flex-[1_1_320px] min-w-0 flex flex-col gap-4">{aside}</aside>
     </div>
   );
 }
 
-export function TxLink({ transaction, children }: { transaction: string; children: string }) {
-  return <HashScanLink hederaId={transaction} kind="transaction" label={children} />;
+export function TxLink({ hash, children = "View on HashScan" }: { hash: string; children?: ReactNode }) {
+  return (
+    <a className="link" href={hashscanTransaction(hash)} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  );
 }
 
-/** A failure beside the button that was pressed. */
-export function Refusal({ id, result }: { id: string; result: TourResult | null }) {
+/** A refusal beside the button that was pressed: the contract's error, or why the request did not run. */
+export function Refusal({ id, result }: { id: string; result: DeskResult | null }) {
   if (!result || result.ok) return null;
   return (
     <div id={id} role="alert" className="alert alert-error text-sm">
       <span className="min-w-0 [overflow-wrap:anywhere]">
-        {result.result === "Error" ? result.message : <strong className="font-mono">{result.result}</strong>}
+        <strong className="font-mono">{result.result}</strong>
+        {result.message ? ` — ${result.message}` : ""}
+        {result.txHash ? (
+          <>
+            {" "}
+            <TxLink hash={result.txHash} />
+          </>
+        ) : null}
       </span>
     </div>
   );
@@ -102,25 +108,24 @@ function Cross() {
 }
 
 /**
- * An attack's result: refused in red, because the attack failed, which is settlement holding. A request that could
- * not run at all is neither: it says why, in neutral colours, and does not count as a refusal.
+ * An attack's result: refused in red, because the attack failed, which is the desk holding. A request that could not
+ * run at all is neither: it says why, in neutral colours, and does not count as a refusal.
  */
-export function AttackOutcome({ id, result, meaning }: { id: string; result: TourResult | null; meaning: string }) {
+export function AttackOutcome({ id, result, meaning }: { id: string; result: AttackResult | null; meaning: string }) {
   if (!result) return null;
-  if (result.result === "Error")
+  if (result.outcome === "blocked")
     return (
       <div id={id} role="alert" className="alert text-sm">
         <span>
-          <strong>Not run.</strong> {result.message}
+          <strong>Not run.</strong> {result.blocked ?? "It could not be tried just now."}
         </span>
       </div>
     );
-  if (result.ok)
+  if (result.outcome === "accepted")
     return (
       <div id={id} role="alert" className="alert alert-warning text-sm">
         <span>
-          <strong>Accepted.</strong> The network carried it out. Something is broken: settlement is not protecting the
-          parties.
+          <strong>Accepted.</strong> The chain carried it out. Something is broken: this desk is not doing its job.
         </span>
       </div>
     );
@@ -131,109 +136,151 @@ export function AttackOutcome({ id, result, meaning }: { id: string; result: Tou
       </span>
       <span className="flex flex-col gap-0.5 text-xs min-w-0 [overflow-wrap:anywhere]">
         <strong className="text-sm">
-          Refused · <span className="font-mono">{result.result}</span>
+          Refused · <span className="font-mono">{result.errorName ?? "Reverted"}</span>
         </strong>
         <span>{meaning}</span>
-        {result.transaction ? (
-          <TxLink transaction={result.transaction}>The refused transaction on HashScan</TxLink>
-        ) : null}
+        {result.txHash ? <TxLink hash={result.txHash}>The refused transaction on HashScan</TxLink> : null}
       </span>
     </div>
   );
 }
 
-const number = (value: string) => Number(value).toLocaleString();
+const amount = (value: string) => (value === "unavailable" ? "?" : value);
 
-function PartyBadge({ name, party, note }: { name: string; party: PartySnapshot; note?: string }) {
+function PartyBadge({ party }: { party: PartyView }) {
+  const held = party.securityHeld !== "unavailable" && party.securityHeld !== "0";
+  const cashHeld = party.cashHeld !== "unavailable" && party.cashHeld !== "0";
   return (
-    <div className="rounded-box bg-base-200 px-3 py-2 flex flex-col gap-0.5 min-w-44">
-      <div className="flex gap-2 items-baseline justify-between">
-        <strong className="text-sm">{name}</strong>
-        {note ? <span className="badge badge-warning badge-sm">{note}</span> : null}
-      </div>
-      <span className="text-sm">
-        <strong>{number(party.balances.security)}</strong> security · <strong>{number(party.balances.payment)}</strong>{" "}
-        stablecoin
+    <span
+      className={`badge badge-lg py-3 h-auto ${party.kyc === false ? "badge-warning" : held || cashHeld ? "badge-info" : "badge-ghost"}`}
+      data-party-badge={party.id}
+    >
+      <span className="flex flex-col items-start leading-tight">
+        <span className="font-semibold">
+          {party.label}
+          {party.kyc === false ? " · no KYC" : ""}
+        </span>
+        <span className="text-[11px]">
+          {amount(party.securityFree)} security{held ? ` (+${amount(party.securityHeld)} held)` : ""} ·{" "}
+          {amount(party.cashFree)} cash{cashHeld ? ` (+${amount(party.cashHeld)} held)` : ""}
+        </span>
       </span>
-    </div>
+    </span>
   );
 }
 
-/** What stays in view on every step once the market exists: the tokens, and where each party stands. */
-export function MarketStrip({ market }: { market: MarketSnapshot }) {
+/**
+ * What stays in view on every step once the market exists: the three contracts, and where each
+ * party stands — free and held, which is the whole point of pledging in place.
+ */
+export function MarketStrip({ state }: { state: DeskView }) {
+  const { security, cash, settlement } = state.market;
   return (
     <section id="market-strip" className="card bg-base-100 border border-base-300 shadow-sm" aria-label="The market">
-      <div className="card-body flex-row flex-wrap gap-x-6 gap-y-2 items-center justify-between p-3">
-        <div className="flex flex-col gap-1 text-xs uppercase tracking-wide text-base-content/60">
-          <span>
-            Security <HashScanLink hederaId={market.securityTokenId} kind="token" />
+      <div className="card-body gap-2 p-4">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 items-center justify-between">
+          <Label>Security · cash · settlement contract</Label>
+          <span className="flex flex-wrap gap-3 font-mono text-xs">
+            {security && (
+              <a
+                id="strip-security"
+                className="link link-primary"
+                href={hashscanContract(security.contractId)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {security.contractId}
+              </a>
+            )}
+            {cash && (
+              <a
+                id="strip-cash"
+                className="link link-primary"
+                href={`https://hashscan.io/testnet/token/${cash.tokenId}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {cash.tokenId}
+              </a>
+            )}
+            {settlement && (
+              <a
+                id="strip-settlement"
+                className="link link-primary"
+                href={hashscanContract(settlement.contractId)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {settlement.contractId}
+              </a>
+            )}
           </span>
-          <span>
-            Stablecoin <HashScanLink hederaId={market.paymentTokenId} kind="token" />
-          </span>
-          {market.auditTopicId ? (
-            <span>
-              Audit topic <HashScanLink hederaId={market.auditTopicId} kind="topic" />
-            </span>
-          ) : null}
-          <NextLink id="strip-own-wallet" href="/?view=sandbox&signing=hashpack" className="link normal-case text-sm">
-            Sign with your own wallet (HashPack)
-          </NextLink>
         </div>
-        <div className="flex flex-wrap gap-2" aria-label="Balances">
-          <PartyBadge name="Seller" party={market.seller} />
-          <PartyBadge name="Buyer" party={market.buyer} />
-          <PartyBadge name="Unverified Buyer" party={market.unverifiedBuyer} note="no KYC" />
-          {market.walletSeller ? <PartyBadge name="Wallet (Seller)" party={market.walletSeller} /> : null}
-          {market.walletBuyer ? <PartyBadge name="Wallet (Buyer)" party={market.walletBuyer} /> : null}
+        <div className="flex flex-wrap gap-2 items-start">
+          {state.parties.map(party => (
+            <PartyBadge key={party.id} party={party} />
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-/** Both legs of a trade, and which of the two signatures the schedule holds. */
-export function SignaturesCard({
-  trade,
-  quantity,
-  price,
-}: {
-  trade: TradeSnapshot | null;
-  quantity: number;
-  price: number;
-}) {
-  const rows = [
-    { who: "Seller", signed: trade !== null, gives: `${quantity.toLocaleString()} security` },
-    { who: "Buyer", signed: false, gives: `${price.toLocaleString()} stablecoin` },
+/** What is pledged on the trade in hand, and which leg is still missing. */
+export function PledgeCard({ trade, state }: { trade: TradeView | null; state: DeskView }) {
+  if (!trade) {
+    return (
+      <Panel title="What is pledged?" caption="Nothing yet: propose a trade and each side pledges its own leg.">
+        <p className="m-0 text-sm text-base-content/70">
+          A pledge is a hold: the settlement contract becomes the only address that can move those units, and only to
+          the counterparty the owner named. The security stays in the Seller&apos;s own account; the cash moves into the
+          stablecoin&apos;s custody, because HTS cannot encumber units in place. Neither counterparty has received
+          anything.
+        </p>
+      </Panel>
+    );
+  }
+  const seller = state.parties.find(p => p.id === trade.seller);
+  const buyer = state.parties.find(p => p.id === trade.buyer);
+  const legs = [
+    {
+      what: `${trade.quantity} security`,
+      from: seller?.label ?? "Seller",
+      to: buyer?.label ?? "Buyer",
+      pledged: trade.securityPledged,
+    },
+    {
+      what: `${trade.price} cash`,
+      from: buyer?.label ?? "Buyer",
+      to: seller?.label ?? "Seller",
+      pledged: trade.cashPledged,
+    },
   ];
   return (
-    <Panel title="Who has signed?" caption="One transaction, two legs. It runs when both parties have signed.">
-      <ul className="m-0 p-0 list-none flex flex-col gap-2">
-        {rows.map(row => (
-          <li
-            key={row.who}
-            className={`rounded-box px-4 py-3 flex justify-between gap-2 ${row.signed ? "bg-success/10 border border-success/40" : "bg-base-200"}`}
+    <Panel
+      title="What is pledged?"
+      caption={
+        trade.securityPledged && trade.cashPledged
+          ? "Both legs are committed. Settlement can deliver them together."
+          : "One leg is still missing. Until both are in, settlement is refused."
+      }
+    >
+      <div id="pledge-card" className="flex flex-col gap-2">
+        {legs.map(leg => (
+          <div
+            key={leg.what}
+            className={`rounded-box px-4 py-3 flex justify-between gap-2 flex-wrap ${leg.pledged ? "bg-success/10 border border-success/40" : "bg-base-200"}`}
           >
-            <span className="flex flex-col">
-              <strong className="text-sm">{row.who}</strong>
-              <span className="text-xs text-base-content/70">gives {row.gives}</span>
+            <span className="text-sm">
+              <strong>{leg.what}</strong> ·{" "}
+              <span className="text-base-content/70">
+                {leg.from} → {leg.to}
+              </span>
             </span>
-            <span className={`text-sm ${row.signed ? "text-success font-semibold" : "text-base-content/60"}`}>
-              {row.signed ? "✓ Signed" : "Not yet"}
-            </span>
-          </li>
+            <span className="text-xs">{leg.pledged ? "✓ held for the trade" : "not pledged"}</span>
+          </div>
         ))}
-      </ul>
-      <p className="m-0 text-xs text-base-content/70">
-        {trade ? (
-          <>
-            Schedule <HashScanLink hederaId={trade.scheduleId} kind="schedule" /> expires at{" "}
-            {new Date(trade.expiresAt).toLocaleTimeString()} if the Buyer does not sign.
-          </>
-        ) : (
-          "No schedule yet: the Seller's proposal creates it."
-        )}
-      </p>
+      </div>
     </Panel>
   );
 }

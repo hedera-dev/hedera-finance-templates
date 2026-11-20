@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 // Every mutating API route signs with the operator key. A page open in any other tab can
 // POST to this server: the same-origin policy hides the response, not the side effect. So
