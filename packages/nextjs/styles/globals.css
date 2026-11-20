@@ -85,6 +85,14 @@
 }
 
 /*
+  @scaffold-hbar-ui colours the text of Balance, Address and HederaAddress with this token and sets it to white in
+  both themes, which is white on white in the light one. Follow the theme's text colour instead.
+*/
+:root {
+  --color-sui-primary-content: var(--color-base-content);
+}
+
+/*
   The default border color has changed to `currentColor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still
   looks the same as it did with Tailwind CSS v3.

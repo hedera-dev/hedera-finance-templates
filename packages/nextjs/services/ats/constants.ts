@@ -27,6 +27,8 @@ export const ROLE_CONTROL_LIST = "0x6ed9a91e996c6475ecdc28ecbdbe9bd1122fc62b30cd
 export const GAS_LIMIT_DEPLOY_BOND = 8_000_000n;
 export const GAS_LIMIT_CONTROL_LIST = 400_000n;
 export const GAS_LIMIT_ISSUE = 1_500_000n;
+/** For the tour's attacks, which revert and so cannot be estimated. Measured at 74k–89k used. */
+export const GAS_LIMIT_ATTACK = 150_000n;
 /**
  * Funding a demo investor lazily creates its Hedera account, which is why this is far more
  * than a plain transfer's 21,000: measured at 607,858 gas on testnet across nine of these
@@ -36,8 +38,8 @@ export const GAS_LIMIT_ISSUE = 1_500_000n;
  */
 export const GAS_LIMIT_FUND_INVESTOR = 1_000_000n;
 
-/** HBAR funding per demo investor, well under the spec's "at most 1 HBAR" ceiling. */
-export const INVESTOR_FUNDING_HBAR = "0.5";
+/** HBAR funding per demo investor: enough for Investor A to sign the tour's refused transfer a few times. */
+export const INVESTOR_FUNDING_HBAR = "1";
 
 export const MIRROR_POLL_ATTEMPTS = 6;
 export const MIRROR_POLL_DELAY_MS = 2000;

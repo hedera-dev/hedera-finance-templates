@@ -59,6 +59,15 @@ export function requireOperator() {
   return operator;
 }
 
+/** A wallet client for a demo investor's own key, which signs the tour's one investor-to-investor transfer. */
+export function walletFor(privateKey: `0x${string}`) {
+  const account = privateKeyToAccount(privateKey);
+  return {
+    account,
+    walletClient: createWalletClient({ chain: chains.hederaTestnet, transport: http(HASHIO_TESTNET_RPC_URL), account }),
+  };
+}
+
 let sharedPublicClient: ReturnType<typeof createPublicClient> | null = null;
 
 /** Read-only client for chain reads that don't need the operator (bond/resolver views). */
