@@ -2,7 +2,7 @@
 
 Issue a regulated security on Hedera through the Asset Tokenization Studio factory, and run a court-order freeze that takes two officers — because the token's KYC, freeze, controller and pause roles belong to a 2-of-3 `OfficerBoard` contract, and to no officer. The EVM homologue of [regulated-token](https://github.com/hedera-dev/hedera-finance-templates/tree/templates/regulated-token), which tells the same story with Hedera-native threshold keys and no contracts.
 
-Paired with the Hedera docs page **Solutions → Finance Workflows → Regulated Token**.
+Paired with the Hedera docs page **Solutions → Finance Workflows → Regulated Token**, under *The same rules, enforced by a contract* — the section that covers this template. The rest of that page is the native one.
 
 ```bash
 npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#templates/regulated-token-evm
