@@ -2,7 +2,7 @@
 
 Briefing for coding agents in this app (Cursor, Claude Code, Codex). Claude Code loads it through `CLAUDE.md`.
 
-This is a Scaffold-HBAR dApp with **no Solidity package**: Next.js App Router, wallet connect, and Hedera networks (testnet, mainnet). Hedera is reached through native services (HTS, scheduled transactions, mirror node) with `@hiero-ledger/sdk`, not smart contracts.
+This is a Scaffold-HBAR dApp with a **Foundry package**: Next.js App Router, wallet connect, and Hedera networks (testnet, mainnet). The security token is deployed through the Asset Tokenization Studio (ATS) factory already on testnet and reached over the JSON-RPC relay with viem; the only contract this repo owns is `OfficerBoard`, a 2-of-3 approval gate that holds the token's compliance roles. The mirror node answers reads that the relay cannot.
 
 Use the package manager this project was created with (`packageManager` in the root `package.json`, or the lockfile). Examples use `yarn`; if the app was created with npm, swap `yarn <script>` for `npm run <script>`.
 
@@ -12,15 +12,19 @@ Use the package manager this project was created with (`packageManager` in the r
 yarn next:dev         # http://localhost:3000
 yarn next:build
 yarn next:check-types
+yarn foundry:compile  # the desk deploys the board from this artifact, so run it before the build
+yarn foundry:test
 yarn lint
 yarn format
 ```
 
 ## Layout
 
-- `packages/nextjs` is the whole app (App Router, RainbowKit, Wagmi, Viem, DaisyUI)
+- `packages/nextjs` is the app (App Router, RainbowKit, Wagmi, Viem, DaisyUI)
+- `packages/foundry` holds `OfficerBoard.sol` and its test
 - Pages: `packages/nextjs/app/`
 - Server-only Hedera code (operator key): API routes under `packages/nextjs/app/api/`; never import the operator key into client components
+- ATS interface shapes come from the `v.8.0.0-ats` tag of `hashgraph/asset-tokenization-studio`, never from its `main`: `main` has drifted from the factory deployed on testnet
 
 ### UI
 
