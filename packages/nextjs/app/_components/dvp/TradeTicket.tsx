@@ -1,161 +1,127 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
-import type { BuyerChoice, MarketSnapshot, SettlementMode } from "~~/services/hedera/types";
-
-export type Terms = {
-  quantity: number;
-  price: number;
-  buyerChoice: BuyerChoice;
-  settlementMode: SettlementMode;
-  settlementDelay?: number;
-};
+import { useState } from "react";
+import type { DvpDeskHook, TradeTerms } from "./useDesk";
+import type { PartyId } from "~~/services/dvp/types";
 
 type Props = {
-  market: MarketSnapshot;
-  busy: boolean;
-  onPropose: (terms: Terms, seller: "demo" | "wallet") => void;
-  /** Whether the connected wallet is the onboarded Seller; only read once a wallet Seller exists. */
-  walletSellerReady?: boolean;
-  /** Under the buttons, e.g. the newest trade's summary. */
-  children?: ReactNode;
-  caption?: string;
+  desk: DvpDeskHook;
+  onResult: (text: string) => void;
 };
 
-/** The trade ticket: what to trade, with whom, and when it settles. The Seller signs when it is proposed. */
-export const TradeTicket = ({
-  market,
-  busy,
-  onPropose,
-  walletSellerReady = false,
-  children,
-  caption = "Buyer is the demo buyer. My wallet is listed after you onboard a wallet as Buyer.",
-}: Props) => {
-  const [quantity, setQuantity] = useState(100);
-  const [price, setPrice] = useState(10000);
-  const [buyerChoice, setBuyerChoice] = useState<BuyerChoice>("buyer");
-  const [settlementMode, setSettlementMode] = useState<SettlementMode>("onSignature");
-  const [settlementDelay, setSettlementDelay] = useState(2);
+/** The terms. Nothing here moves a token: proposing records them on the settlement contract. */
+export function TradeTicket({ desk, onResult }: Props) {
+  const { state, propose, busyKey } = desk;
+  const defaults = state?.defaults;
+  const [terms, setTerms] = useState<TradeTerms>({
+    quantity: defaults?.quantity ?? "100",
+    price: defaults?.price ?? "10000",
+    buyer: "buyer",
+    settlementMode: "immediate",
+    delayMinutes: String(defaults?.defaultDelayMinutes ?? 2),
+  });
 
-  useEffect(() => {
-    if (buyerChoice === "wallet" && !market.walletBuyer) setBuyerChoice("buyer");
-  }, [buyerChoice, market.walletBuyer]);
+  const set = <K extends keyof TradeTerms>(key: K, value: TradeTerms[K]) => setTerms(t => ({ ...t, [key]: value }));
 
-  const validDelay = Number.isInteger(settlementDelay) && settlementDelay >= 1 && settlementDelay <= 60;
-  const delayInvalid = settlementMode === "atTime" && !validDelay;
-  const demoProposeDisabled = busy || delayInvalid || (buyerChoice === "wallet" && !market.walletBuyer);
-  const terms: Terms = {
-    quantity,
-    price,
-    buyerChoice,
-    settlementMode,
-    settlementDelay: settlementMode === "atTime" ? settlementDelay : undefined,
+  const submit = async () => {
+    const result = await propose(terms);
+    onResult(
+      result.ok
+        ? `Proposed trade ${result.tradeId}. Neither leg is pledged yet, and no balance has changed.`
+        : `The proposal was refused: ${result.result}${result.message ? ` — ${result.message}` : ""}`,
+    );
   };
 
   return (
-    <section className="card bg-base-100 shadow-md border border-base-300 p-6 w-full">
-      <h2 className="font-bold text-lg mb-1">Trade ticket</h2>
-      <p className="text-xs text-base-content/70 mb-3">{caption}</p>
-      <div className="flex flex-wrap gap-4 items-end mb-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-base-content/70" htmlFor="trade-quantity">
-            Quantity (security)
-          </label>
-          <input
-            id="trade-quantity"
-            type="number"
-            min={1}
-            className="input input-bordered w-28"
-            value={quantity}
-            onChange={e => setQuantity(Number(e.target.value))}
-          />
+    <section id="ticket" className="card bg-base-100 border border-base-300 shadow-none">
+      <div className="card-body gap-3 p-4">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="m-0 text-base font-semibold">Propose a trade</h2>
+          <p className="m-0 text-xs text-base-content/60">
+            The Seller sells security for cash. Proposing moves nothing: each side pledges its own leg next.
+          </p>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-base-content/70" htmlFor="trade-price">
-            Price (stablecoin)
-          </label>
-          <input
-            id="trade-price"
-            type="number"
-            min={1}
-            className="input input-bordered w-32"
-            value={price}
-            onChange={e => setPrice(Number(e.target.value))}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-base-content/70" htmlFor="trade-buyer">
-            Buyer
-          </label>
-          <select
-            id="trade-buyer"
-            className="select select-bordered"
-            value={buyerChoice}
-            onChange={e => setBuyerChoice(e.target.value as BuyerChoice)}
-          >
-            <option value="buyer">Buyer</option>
-            <option value="unverifiedBuyer">Unverified Buyer</option>
-            {market.walletBuyer && <option value="wallet">My wallet ({market.walletBuyer.accountId})</option>}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-base-content/70" htmlFor="settlement-mode">
-            Settlement
-          </label>
-          <select
-            id="settlement-mode"
-            className="select select-bordered"
-            value={settlementMode}
-            onChange={e => setSettlementMode(e.target.value as SettlementMode)}
-          >
-            <option value="onSignature">On the Buyer&apos;s signature</option>
-            <option value="atTime">At a set time</option>
-          </select>
-        </div>
-        {settlementMode === "atTime" && (
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-base-content/70" htmlFor="settlement-delay">
-              Minutes from now
-            </label>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="form-control">
+            <span className="label-text text-xs mb-1">Quantity (security units)</span>
             <input
-              id="settlement-delay"
+              id="trade-quantity"
               type="number"
               min={1}
-              max={60}
-              className="input input-bordered w-24"
-              value={settlementDelay}
-              onChange={e => setSettlementDelay(Number(e.target.value))}
+              step={1}
+              className="input input-sm input-bordered"
+              value={terms.quantity}
+              onChange={e => set("quantity", e.target.value)}
             />
-          </div>
-        )}
-      </div>
-      {settlementMode === "atTime" && (
-        <p className="text-xs text-base-content/60 mb-4">
-          Stands in for a real settlement date such as T+1, shortened to minutes so it can be watched.
-        </p>
-      )}
+          </label>
+          <label className="form-control">
+            <span className="label-text text-xs mb-1">Price (total cash)</span>
+            <input
+              id="trade-price"
+              type="number"
+              min={1}
+              step={1}
+              className="input input-sm input-bordered"
+              value={terms.price}
+              onChange={e => set("price", e.target.value)}
+            />
+          </label>
+          <label className="form-control">
+            <span className="label-text text-xs mb-1">Buyer</span>
+            <select
+              id="trade-buyer"
+              className="select select-sm select-bordered"
+              value={terms.buyer}
+              onChange={e => set("buyer", e.target.value as PartyId)}
+            >
+              <option value="buyer">Buyer</option>
+              <option value="unverified">Unverified Buyer</option>
+            </select>
+          </label>
+          <label className="form-control">
+            <span className="label-text text-xs mb-1">Settlement</span>
+            <select
+              id="settlement-mode"
+              className="select select-sm select-bordered"
+              value={terms.settlementMode}
+              onChange={e => set("settlementMode", e.target.value as TradeTerms["settlementMode"])}
+            >
+              <option value="immediate">As soon as both legs are pledged</option>
+              <option value="delayed">Not before a set time</option>
+            </select>
+          </label>
+          {terms.settlementMode === "delayed" && (
+            <label className="form-control sm:col-span-2">
+              <span className="label-text text-xs mb-1">Minutes from now</span>
+              <input
+                id="settlement-delay"
+                type="number"
+                min={1}
+                max={defaults?.maxDelayMinutes ?? 60}
+                step={1}
+                className="input input-sm input-bordered"
+                value={terms.delayMinutes}
+                onChange={e => set("delayMinutes", e.target.value)}
+              />
+              <span className="text-xs text-base-content/60 mt-1">
+                This stands in for a settlement date such as T+1, shortened so it can be watched.
+              </span>
+            </label>
+          )}
+        </div>
 
-      <div className="flex flex-wrap gap-3 mb-4">
         <button
           id="propose-trade"
-          className="btn btn-primary"
-          disabled={demoProposeDisabled}
-          onClick={() => onPropose(terms, "demo")}
+          type="button"
+          className="btn btn-primary btn-sm self-start"
+          disabled={busyKey === "propose"}
+          onClick={submit}
         >
-          {busy ? "Proposing…" : "Propose as demo Seller"}
+          {busyKey === "propose" && <span className="loading loading-spinner loading-xs" />}
+          Propose as Seller
         </button>
-        {market.walletSeller && (
-          <button
-            id="propose-trade-wallet"
-            className="btn btn-secondary"
-            disabled={demoProposeDisabled || !walletSellerReady}
-            onClick={() => onPropose(terms, "wallet")}
-          >
-            {busy ? "Proposing…" : `Propose as my wallet (${market.walletSeller.accountId})`}
-          </button>
-        )}
       </div>
-      {children}
     </section>
   );
-};
+}
