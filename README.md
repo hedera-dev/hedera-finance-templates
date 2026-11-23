@@ -12,3 +12,5 @@ npx scaffold-hbar@latest --template hedera-dev/hedera-finance-templates#template
 yarn install
 yarn next:dev   # http://localhost:3000
 ```
+
+The page opens on a guided tour: **Set up** the token and its officers, have Officer 1 **Propose** a court order to freeze Holder A, **Approve** it as Officer 2, **Break it** with three attempts the network refuses (each with a HashScan link), and carry out **More orders**. The **Sandbox** tab (`/?view=sandbox`) has every control on one page. Setup costs about 27 testnet HBAR, 20 of it the fee for creating a token.

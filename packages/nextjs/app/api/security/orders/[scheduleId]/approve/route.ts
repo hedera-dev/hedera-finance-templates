@@ -7,9 +7,9 @@ import { buildDeskStateView } from "~~/services/security/deskView";
 export async function POST(_req: Request, { params }: { params: Promise<{ scheduleId: string }> }) {
   const { scheduleId } = await params;
   try {
-    await approveOrder(decodeURIComponent(scheduleId), "2");
+    const result = await approveOrder(decodeURIComponent(scheduleId), "2");
     const state = await buildDeskStateView();
-    return NextResponse.json({ ok: true, state });
+    return NextResponse.json({ ok: true, result, state });
   } catch (error) {
     return errorResponse(error);
   }
