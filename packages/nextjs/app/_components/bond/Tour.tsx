@@ -430,11 +430,7 @@ function ManageScreen({ ctx }: { ctx: Ctx }) {
             The allowlist is the issuer&apos;s to change at any time, and the bond follows it from the next transaction
             on. Approve Investor B and issue it some bonds; revoke it, and it keeps them but cannot receive more.
           </p>
-          {desk.actionError ? (
-            <p id="action-error" className="m-0 text-sm text-error" role="alert">
-              {desk.actionError}
-            </p>
-          ) : null}
+          <Refusal id="action-error" result={desk.actionResult} />
           <ul id="investors" className="m-0 p-0 flex flex-col gap-3">
             {status.investors.map(investor => (
               <InvestorRow

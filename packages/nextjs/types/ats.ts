@@ -44,9 +44,7 @@ export type DeskStatus = {
   bond: BondTerms | null;
   investors: InvestorView[];
   activity: ActivityEntryView[];
-  /** Set when the action that produced this status was refused, with the reason to show. */
-  actionError?: string;
-  /** The outcome of the action that produced this status: what the tour shows beside its button. */
+  /** The outcome of the action that produced this status: what the page shows beside its button. */
   actionResult?: ActionResult;
 };
 

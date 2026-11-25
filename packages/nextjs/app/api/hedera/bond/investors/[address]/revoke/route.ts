@@ -32,6 +32,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ addres
   });
 
   // 200 with the refusal attached: the action was carried out, and its answer was no. The
-  // page shows `actionError`; without it a refusal was visible only in the activity log.
+  // page shows `actionResult`; without it a refusal was visible only in the activity log.
   return NextResponse.json(await statusAfter(outcome, `${investor.label} is off the allowlist.`));
 }

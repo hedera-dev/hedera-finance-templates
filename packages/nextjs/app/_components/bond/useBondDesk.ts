@@ -37,6 +37,11 @@ const initialSteps: StepsState = {
   verify: { status: "pending" },
 };
 
+/** A request that never reached the chain, shaped like the outcomes that did. */
+function requestFailure(error: unknown): ActionResult {
+  return { ok: false, result: "Error", message: error instanceof Error ? error.message : String(error) };
+}
+
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
@@ -53,7 +58,7 @@ export function useBondDesk() {
   const [statusLoaded, setStatusLoaded] = useState(false);
 
   const [steps, setSteps] = useState<StepsState>(initialSteps);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<ActionResult | null>(null);
   const [issuing, setIssuing] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
   const [justIssued, setJustIssued] = useState(false);
@@ -133,19 +138,21 @@ export function useBondDesk() {
 
   /**
    * Every investor action goes through here, so none of them can swallow an outcome: a
-   * refusal arrives as `actionError` on the new status, and a request that fails outright
-   * used to become an unhandled rejection with nothing shown.
+   * refusal arrives as `actionResult` on the new status, and a request that fails outright
+   * used to become an unhandled rejection with nothing shown. The decoded result is kept
+   * rather than a raw `AccountIsBlocked(0x27c7…)`, so these actions report a refusal the way
+   * the attacks do.
    */
   const runInvestorAction = useCallback(async (url: string, body: unknown, address: string) => {
     setBusyAddress(address);
-    setActionError(null);
+    setActionResult(null);
     try {
       const data = await postJson<DeskStatus>(url, body);
       if (!mounted.current) return;
       setStatus(data);
-      setActionError(data.actionError ?? null);
+      setActionResult(data.actionResult ?? null);
     } catch (error) {
-      if (mounted.current) setActionError(error instanceof Error ? error.message : String(error));
+      if (mounted.current) setActionResult(requestFailure(error));
     } finally {
       if (mounted.current) setBusyAddress(null);
     }
@@ -169,12 +176,12 @@ export function useBondDesk() {
 
   const addWalletInvestor = useCallback(async (address: string) => {
     setAddingWallet(true);
-    setActionError(null);
+    setActionResult(null);
     try {
       const data = await postJson<DeskStatus>("/api/hedera/bond/investors/wallet", { address });
       if (mounted.current) setStatus(data);
     } catch (error) {
-      if (mounted.current) setActionError(error instanceof Error ? error.message : String(error));
+      if (mounted.current) setActionResult(requestFailure(error));
     } finally {
       if (mounted.current) setAddingWallet(false);
     }
@@ -192,7 +199,7 @@ export function useBondDesk() {
       if (mounted.current) setStatus(data);
       return data.actionResult ?? { ok: true, result: "SUCCESS", message: "" };
     } catch (error) {
-      return { ok: false, result: "Error", message: error instanceof Error ? error.message : String(error) };
+      return requestFailure(error);
     } finally {
       if (mounted.current) setBusyKey(null);
     }
@@ -208,7 +215,7 @@ export function useBondDesk() {
   return {
     status,
     statusLoaded,
-    actionError,
+    actionResult,
     refreshStatus,
     steps,
     issuing,

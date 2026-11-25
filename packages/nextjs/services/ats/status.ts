@@ -15,7 +15,6 @@ export async function statusAfter(outcome: WriteOutcome, success: string): Promi
     return { ...status, actionResult: { ok: true, result: "SUCCESS", message: success, txHash: outcome.txHash } };
   return {
     ...status,
-    actionError: outcome.error,
     actionResult: { ok: false, result: outcome.errorName, message: outcome.error, txHash: outcome.txHash },
   };
 }

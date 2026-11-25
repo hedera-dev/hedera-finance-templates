@@ -10,7 +10,7 @@
     "lint": "next lint",
     "serve": "next start",
     "start": "next dev",
-    "check-ats": "rm -rf .ats-check && tsc -p tsconfig.ats-check.json && node --test .ats-check/tests"
+    "check-ats": "rm -rf .ats-check && tsc -p tsconfig.ats-check.json && node --test .ats-check/tests/*.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.1.5",

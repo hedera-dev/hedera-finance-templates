@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { formatDate, formatNumber, shortAddress } from "./formatters";
+import { formatDate, formatNumber, refusalSentence, shortAddress } from "./formatters";
 import type { ActionResult, BondTerms, InvestorView } from "~~/types/ats";
 import { hashscanContractUrl, hashscanTxUrl } from "~~/utils/ats/hashscan";
 
@@ -82,11 +82,14 @@ export function HashScanTx({ hash, children = "View on HashScan" }: { hash: stri
 /** A refusal beside the button that was pressed, with the decoded error in front. */
 export function Refusal({ id, result }: { id: string; result: ActionResult | null }) {
   if (!result || result.ok) return null;
+  // `AccountIsBlocked(0x27c7…)` says nothing the name above does not, so there is no sentence to
+  // append. Appending one anyway left the refusal reading "AccountIsBlocked — ".
+  const sentence = refusalSentence(result);
   return (
     <div id={id} role="alert" className="alert alert-error text-sm">
       <span className="min-w-0 [overflow-wrap:anywhere]">
         <strong className="font-mono">{result.result}</strong>
-        {result.message && result.message !== result.result ? ` — ${explain(result)}` : ""}
+        {sentence ? ` — ${sentence}` : ""}
         {result.txHash ? (
           <>
             {" "}
@@ -104,14 +107,6 @@ function Cross() {
       <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
-}
-
-/** The refusal's sentence without the error name in front of it, which the line above already shows. */
-function explain(result: ActionResult, meaning?: string): string {
-  const message = result.message.startsWith(`${result.result}(`) ? "" : result.message;
-  const sentence = message === result.result || message === "" ? (meaning ?? message) : message;
-  const short = sentence.replace(/0x[0-9a-fA-F]{40}/g, address => shortAddress(address));
-  return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
 /**
@@ -145,7 +140,7 @@ export function AttackOutcome({ id, result, meaning }: { id: string; result: Act
         <strong className="text-sm">
           Refused · <span className="font-mono">{result.result}</span>
         </strong>
-        <span>{explain(result, meaning)}</span>
+        <span>{refusalSentence(result, meaning)}</span>
         {result.txHash ? <HashScanTx hash={result.txHash}>The refused transaction on HashScan</HashScanTx> : null}
       </span>
     </div>
