@@ -132,7 +132,19 @@ function frozenLabel(frozen: HolderView["frozen"]) {
   return "Unknown";
 }
 
-function HolderRow({ holder, busy, onSend }: { holder: HolderView; busy: boolean; onSend: () => void }) {
+type SendResult = { ok: boolean; text: string };
+
+function HolderRow({
+  holder,
+  busy,
+  result,
+  onSend,
+}: {
+  holder: HolderView;
+  busy: boolean;
+  result: SendResult | undefined;
+  onSend: () => void;
+}) {
   return (
     <li
       data-account={holder.accountId}
@@ -153,6 +165,13 @@ function HolderRow({ holder, busy, onSend }: { holder: HolderView; busy: boolean
         {busy && <span className="loading loading-spinner loading-xs" />}
         Send 10
       </button>
+      {result ? (
+        <p
+          className={`holder-send-result m-0 text-xs [overflow-wrap:anywhere] ${result.ok ? "text-success" : "text-error"}`}
+        >
+          {result.ok ? "Sent 10" : result.text}
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -160,10 +179,12 @@ function HolderRow({ holder, busy, onSend }: { holder: HolderView; busy: boolean
 export function HoldersPanel({
   holders,
   busy,
+  results,
   onSend,
 }: {
   holders: HolderView[];
   busy: BusyMap;
+  results: Record<string, SendResult>;
   onSend: (holderId: HolderId) => void;
 }) {
   return (
@@ -173,7 +194,13 @@ export function HoldersPanel({
         <p className="text-sm text-base-content/70 m-0">Two demo accounts the issuer can send the token to.</p>
         <ul id="holders" className="flex flex-col gap-2">
           {holders.map(h => (
-            <HolderRow key={h.id} holder={h} busy={Boolean(busy[`send-${h.id}`])} onSend={() => onSend(h.id)} />
+            <HolderRow
+              key={h.id}
+              holder={h}
+              busy={Boolean(busy[`send-${h.id}`])}
+              result={results[h.id]}
+              onSend={() => onSend(h.id)}
+            />
           ))}
         </ul>
       </div>
@@ -414,13 +441,13 @@ function HistoryRow({ row }: { row: HistoryView }) {
     row.linkKind === "schedule" ? hashscanSchedule(row.transactionId) : hashscanTransaction(row.transactionId);
   return (
     <li className="history-entry flex flex-col gap-0.5 border-b border-base-300 py-2 text-sm last:border-none">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-base-content/60">{new Date(row.timestampMs).toLocaleTimeString()}</span>
-        <a href={href} target="_blank" rel="noreferrer" className="link text-xs font-mono">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="shrink-0 text-xs text-base-content/60">{new Date(row.timestampMs).toLocaleTimeString()}</span>
+        <a href={href} target="_blank" rel="noreferrer" className="link text-xs font-mono min-w-0 break-all text-right">
           {row.transactionId}
         </a>
       </div>
-      <p className="m-0">
+      <p className="m-0 [overflow-wrap:anywhere]">
         {row.action}
         {row.reference ? ` · ${row.reference}` : ""} —{" "}
         <span className={row.result === "SUCCESS" ? "text-success" : "text-error"}>{row.result}</span>
@@ -480,7 +507,9 @@ export function SecurityDesk({ desk }: { desk: SecurityDeskHook }) {
           onSetup={desk.runSetup}
         />
         <WalletStateCard wallet={state.wallet} />
-        {state.holders.length > 0 && <HoldersPanel holders={state.holders} busy={desk.busy} onSend={desk.send} />}
+        {state.holders.length > 0 && (
+          <HoldersPanel holders={state.holders} busy={desk.busy} results={desk.sendResults} onSend={desk.send} />
+        )}
         {state.token && (
           <OrderPanel holders={state.holders} busy={Boolean(desk.busy.propose)} onPropose={desk.propose} />
         )}
