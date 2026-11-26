@@ -5,6 +5,7 @@
  * Run with `yarn check-ats` — compiled by tsc and run by node's own test runner, so there is
  * no test framework to install.
  */
+import { refusalSentence } from "../app/_components/bond/formatters";
 import { isTransientRelayError } from "../services/ats/clients";
 import { START_DELAY_SECONDS, bondDates } from "../utils/ats/dates";
 import { validateIsin } from "../utils/ats/isin";
@@ -77,4 +78,36 @@ test("relay trouble is retried; a refusal is not", () => {
   });
   assert.equal(isTransientRelayError(refusal), false, "a revert is an answer, not a failure to ask");
   assert.equal(isTransientRelayError(new Error("Insufficient funds")), false);
+});
+
+/**
+ * The manage step used to print the decoded revert whole — `AccountIsBlocked(0x27c7…)` — beside
+ * the investor row, while the attacks showed the name alone. Both now read the same, which only
+ * holds while a message that repeats its own error name produces no sentence.
+ */
+test("a refusal keeps only what the error name does not already say", () => {
+  const blocked = {
+    result: "AccountIsBlocked",
+    message: "AccountIsBlocked(0x27c70b505875d58a1b6bD36B033e26B85Eb9eD05)",
+  };
+  assert.equal(refusalSentence(blocked), "", "the decoded revert adds nothing to its own name");
+  assert.equal(
+    refusalSentence(blocked, "The bond only mints to addresses on its allowlist."),
+    "The bond only mints to addresses on its allowlist.",
+    "an attack's own meaning is used instead",
+  );
+
+  assert.equal(refusalSentence({ result: "Reverted", message: "Reverted" }), "", "a message that is only the name");
+
+  assert.equal(
+    refusalSentence({ result: "Error", message: "fetch failed (ECONNREFUSED: connect refused)" }),
+    "Fetch failed (ECONNREFUSED: connect refused)",
+    "a request that never reached the chain keeps its reason",
+  );
+
+  assert.equal(
+    refusalSentence({ result: "Error", message: "0x27c70b505875d58a1b6bD36B033e26B85Eb9eD05 is not approved" }),
+    "0x27c7…eD05 is not approved",
+    "a loose address in a real sentence is shortened, not dropped",
+  );
 });

@@ -11,6 +11,7 @@
   "include": [
     "utils/ats/isin.ts",
     "utils/ats/dates.ts",
+    "app/_components/bond/formatters.ts",
     "services/ats/clients.ts",
     "tests/atsBond.test.ts"
   ]

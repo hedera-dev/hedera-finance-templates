@@ -21,7 +21,7 @@ export function Sandbox({ desk }: { desk: BondDesk }) {
     clearJustIssued,
     issueBond,
     busyAddress,
-    actionError,
+    actionResult,
     approveInvestor,
     revokeInvestor,
     issueToInvestor,
@@ -54,7 +54,7 @@ export function Sandbox({ desk }: { desk: BondDesk }) {
         {status?.bond ? (
           <InvestorsCard
             investors={status.investors}
-            actionError={actionError}
+            actionResult={actionResult}
             busyAddress={busyAddress}
             onApprove={approveInvestor}
             onRevoke={revokeInvestor}
