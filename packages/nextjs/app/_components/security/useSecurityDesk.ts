@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { hederaTestnet } from "viem/chains";
-import { useAccount } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { useTransactor } from "~~/hooks/scaffold-hbar";
 import type { DeskStateView, HolderId, OrderAction } from "~~/services/security/types";
+import { ensureTestnet } from "~~/services/security/walletChain";
 
 export type SetupStepId = "officers" | "token" | "holders" | "distribute";
 export type SetupStepStatus = "pending" | "active" | "done" | "failed";
@@ -43,7 +43,8 @@ const postJson = (url: string, body: unknown = {}) =>
  * fresh view the route sends back, so the page never has to guess what changed.
  */
 export function useSecurityDesk() {
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, connector } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const transact = useTransactor();
   const [state, setState] = useState<DeskStateView | null>(null);
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>(initialSteps());
@@ -171,10 +172,15 @@ export function useSecurityDesk() {
   const approveAsWallet = useCallback(
     (scheduleId: string) =>
       withBusy(`wallet-${scheduleId}`, async () => {
-        if (!isConnected) throw new Error("No wallet is connected.");
+        if (!isConnected || !connector) throw new Error("No wallet is connected.");
         // The desk reads and writes Hedera testnet; from a wallet on any other network this
         // transaction would go to a long-zero address that means nothing there.
-        if (chainId !== hederaTestnet.id) throw new Error("Switch the wallet to Hedera testnet to approve.");
+        //
+        // Ask the wallet, not `useAccount().chainId`: that reports wagmi's own view, which is the
+        // configured chain whatever the wallet is doing. HashPack's EVM provider serves a testnet
+        // account while answering `eth_chainId` with 295 (mainnet), so a check against the cached
+        // value passes and viem fails a layer down with its request arguments on screen.
+        await ensureTestnet(connector, switchChainAsync);
 
         const prepared = await postJson(
           `/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/prepare`,
@@ -189,7 +195,7 @@ export function useSecurityDesk() {
         const data = await postJson(`/api/security/orders/${encodeURIComponent(scheduleId)}/approve-wallet/submit`);
         setState(data.state);
       }),
-    [withBusy, isConnected, chainId, transact],
+    [withBusy, isConnected, connector, switchChainAsync, transact],
   );
 
   /**

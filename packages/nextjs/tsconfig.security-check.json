@@ -11,6 +11,7 @@
   "include": [
     "services/security/keys.ts",
     "services/security/hrc755.ts",
+    "services/security/walletChain.ts",
     "tests/securityKeys.test.ts",
     "tests/walletApproval.test.ts"
   ]
