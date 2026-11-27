@@ -53,6 +53,7 @@ export type HistoryView = {
 /** `unknown` is a connected wallet whose role the desk could not check, which is not the same as not being an officer. */
 export type WalletState =
   | { kind: "not-connected" }
+  | { kind: "before-setup" }
   | { kind: "not-officer" }
   | { kind: "unknown" }
   | { kind: "officer3"; accountId: string };

@@ -103,11 +103,17 @@ function describeWallet(wallet: DeskStateView["wallet"]): string {
       `for it in the wallet, which puts its own key on that order's schedule. It pays that one small fee itself.`
     );
   }
+  if (wallet.kind === "before-setup") {
+    return "A wallet is connected. Set up the desk now and this wallet becomes Officer 3, able to approve orders with its own key.";
+  }
   if (wallet.kind === "unknown") {
     return "A wallet is connected, but the desk could not reach the mirror node to check its role just now.";
   }
   if (wallet.kind === "not-officer") {
-    return "A wallet is connected, but it was not connected before setup, so it can watch this desk but cannot approve orders.";
+    return (
+      "A wallet is connected, but it is not Officer 3 for this desk — the officer keys were fixed when the token " +
+      "was created. It can watch this desk but cannot approve orders."
+    );
   }
   return "No wallet is connected to this desk.";
 }
