@@ -1,5 +1,6 @@
 "use client";
 
+import { Panel } from "./TourParts";
 import { formatUnits } from "viem";
 import { hederaTestnet } from "viem/chains";
 import { useCouponHistory } from "~~/hooks/coupons/useCouponHistory";
@@ -10,56 +11,56 @@ type Props = {
   stablecoinDecimals: number;
 };
 
+const OUTCOME_BADGE: Record<string, string> = {
+  MISSED: "badge-warning",
+  "PRINCIPAL REPAID": "badge-success",
+};
+
 export function CouponHistoryCard({ bondAddress, stablecoinDecimals }: Props) {
   const { data: entries, isLoading } = useCouponHistory(bondAddress);
+  const empty = !isLoading && (!entries || entries.length === 0);
 
   return (
-    <div className="card bg-base-100 shadow border border-base-300">
-      <div className="card-body gap-2 !p-4">
-        <div>
-          <h3 className="card-title text-base">Coupon history</h3>
-          <p className="text-sm text-base-content/70 m-0">
-            Read straight from the bond&apos;s events on the mirror node -- nobody on this page triggers these.
+    <Panel
+      title="Coupon history"
+      caption="Read straight from the bond's events on the mirror node — nobody on this page triggers these."
+    >
+      <div id="coupons" className="flex flex-col">
+        {isLoading && (
+          <p className="m-0 flex items-center gap-2 text-sm text-base-content/60">
+            <span className="loading loading-spinner loading-xs" aria-hidden />
+            Loading…
           </p>
-        </div>
-        <div id="coupons" className="flex flex-col gap-2">
-          {isLoading && <p className="text-sm text-base-content/60">Loading…</p>}
-          {!isLoading && (!entries || entries.length === 0) && (
-            <p className="text-sm text-base-content/60">No coupons have been paid yet.</p>
-          )}
-          {entries?.map(entry => (
-            <div
-              key={entry.key}
-              className="coupon-entry flex flex-wrap items-center justify-between gap-2 text-sm py-2 border-b border-base-300 last:border-b-0"
-            >
-              <span className="font-semibold">Coupon #{entry.coupon}</span>
-              <span className="text-xs text-base-content/60">{new Date(entry.consensusTime).toLocaleString()}</span>
-              <span
-                className={
-                  entry.outcome === "MISSED"
-                    ? "badge badge-warning badge-sm"
-                    : entry.outcome === "PRINCIPAL REPAID"
-                      ? "badge badge-success badge-sm"
-                      : "badge badge-info badge-sm"
-                }
-              >
-                {entry.outcome}
-              </span>
-              <span className="font-mono text-xs">
-                {entry.totalPaid !== undefined ? formatUnits(entry.totalPaid, stablecoinDecimals) : "0"}
-              </span>
+        )}
+        {empty && (
+          <p className="m-0 rounded-box border border-dashed border-base-300 px-4 py-6 text-center text-sm text-base-content/60">
+            No coupons have been paid yet. The first one lands on its own, at the due time above.
+          </p>
+        )}
+        {entries?.map(entry => (
+          <div
+            key={entry.key}
+            className="coupon-entry flex flex-wrap items-center gap-x-3 gap-y-1 py-3 border-b border-base-300 last:border-b-0"
+          >
+            <span className="font-semibold text-sm">Coupon #{entry.coupon}</span>
+            <span className={`badge badge-sm ${OUTCOME_BADGE[entry.outcome] ?? "badge-info"}`}>{entry.outcome}</span>
+            <span className="font-mono text-sm font-semibold ml-auto">
+              {entry.totalPaid !== undefined ? formatUnits(entry.totalPaid, stablecoinDecimals) : "0"}
+            </span>
+            <span className="basis-full text-xs text-base-content/60 flex flex-wrap gap-x-2">
+              {new Date(entry.consensusTime).toLocaleString()}
               <a
                 href={getBlockExplorerTxLink(hederaTestnet.id, entry.txHash)}
                 target="_blank"
                 rel="noreferrer"
-                className="link text-xs no-underline hover:underline"
+                className="link link-hover"
               >
-                tx
+                View on HashScan
               </a>
-            </div>
-          ))}
-        </div>
+            </span>
+          </div>
+        ))}
       </div>
-    </div>
+    </Panel>
   );
 }

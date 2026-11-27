@@ -162,14 +162,22 @@ export function AttackOutcome({ id, result, meaning }: { id: string; result: Tou
 
 export const whole = (value: bigint, decimals: number) => Number(formatUnits(value, decimals)).toLocaleString();
 
-function Badge({ name, children }: { name: string; children: ReactNode }) {
+/** A balance the reader is meant to watch move, so the number carries the weight, not the label. */
+function Badge({ name, children, tone }: { name: string; children: ReactNode; tone?: string }) {
   return (
-    <div className="rounded-box bg-base-200 px-3 py-2 flex flex-col gap-0.5 min-w-40">
-      <strong className="text-sm">{name}</strong>
-      <span className="text-sm">{children}</span>
+    <div className={`rounded-box px-3 py-2 flex flex-col gap-0.5 min-w-40 ${tone ?? "bg-base-200"}`}>
+      <span className="text-xs uppercase tracking-wide text-base-content/60">{name}</span>
+      <span className="text-base leading-tight">{children}</span>
     </div>
   );
 }
+
+/** The bond's own badge takes its colour from what the network is doing with it. */
+const BOND_TONE: Record<string, string> = {
+  RUNNING: "bg-primary/10 border border-primary/30",
+  MATURED: "bg-success/10 border border-success/40",
+  STOPPED: "bg-warning/10 border border-warning/40",
+};
 
 function InvestorBadge({
   name,
@@ -185,7 +193,7 @@ function InvestorBadge({
     <Badge name={name}>
       {data ? (
         <>
-          <strong>{whole(data.tokenBalance, stablecoin.decimals)}</strong> {stablecoin.symbol}
+          <strong className="font-bold">{whole(data.tokenBalance, stablecoin.decimals)}</strong> {stablecoin.symbol}
         </>
       ) : (
         "reading…"
@@ -197,10 +205,23 @@ function InvestorBadge({
 function BondBadge({ address, bond, stablecoin }: { address: `0x${string}`; bond?: BondData; stablecoin: Stablecoin }) {
   const { data } = useMirrorAccount(address, stablecoin.tokenId);
   return (
-    <Badge name={`Bond · ${bond?.status ?? "reading…"}`}>
-      {data ? <strong>{whole(data.tokenBalance, stablecoin.decimals)}</strong> : "…"} {stablecoin.symbol} ·{" "}
-      {bond?.hbarBalance != null ? <strong>{whole(bond.hbarBalance, 18)}</strong> : "…"} HBAR
+    <Badge name={`Bond · ${bond?.status ?? "reading…"}`} tone={BOND_TONE[bond?.status ?? ""] ?? "bg-base-200"}>
+      {data ? <strong className="font-bold">{whole(data.tokenBalance, stablecoin.decimals)}</strong> : "…"}{" "}
+      {stablecoin.symbol} ·{" "}
+      {bond?.hbarBalance != null ? <strong className="font-bold">{whole(bond.hbarBalance, 18)}</strong> : "…"} HBAR
     </Badge>
+  );
+}
+
+/** One id in the strip: the label stays quiet, the value is the thing to click. */
+function StripId({ name, path, value }: { name: string; path: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5 min-w-0">
+      <dt className="uppercase tracking-wide text-base-content/50">{name}</dt>
+      <dd className="m-0 font-mono">
+        <HashScan path={path}>{value}</HashScan>
+      </dd>
+    </div>
   );
 }
 
@@ -217,23 +238,20 @@ export function DeskStrip({
   const stablecoin = desk.stablecoin!;
   return (
     <section id="desk-strip" className="card bg-base-100 border border-base-300 shadow-sm" aria-label="The desk">
-      <div className="card-body flex-row flex-wrap gap-x-6 gap-y-2 items-center justify-between p-3">
-        <div className="flex flex-col gap-1 text-xs uppercase tracking-wide text-base-content/60">
-          <span>
-            Stablecoin <HashScan path={`token/${stablecoin.tokenId}`}>{stablecoin.tokenId}</HashScan>
-          </span>
+      <div className="card-body flex-row flex-wrap gap-x-6 gap-y-3 items-center justify-between p-4">
+        <dl className="m-0 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+          <StripId name="Stablecoin" path={`token/${stablecoin.tokenId}`} value={stablecoin.tokenId} />
           {desk.factory ? (
-            <span>
-              Factory{" "}
-              <HashScan path={`contract/${desk.factory.address}`}>{desk.factory.address.slice(0, 10)}…</HashScan>
-            </span>
+            <StripId
+              name="Factory"
+              path={`contract/${desk.factory.address}`}
+              value={`${desk.factory.address.slice(0, 10)}…`}
+            />
           ) : null}
           {bondAddress ? (
-            <span>
-              Bond <HashScan path={`contract/${bondAddress}`}>{bondAddress.slice(0, 10)}…</HashScan>
-            </span>
+            <StripId name="Bond" path={`contract/${bondAddress}`} value={`${bondAddress.slice(0, 10)}…`} />
           ) : null}
-        </div>
+        </dl>
         <div className="flex flex-wrap gap-2" aria-label="Balances">
           {desk.investors.map(investor => (
             <InvestorBadge
