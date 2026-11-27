@@ -10,33 +10,25 @@ type Step = { status: StepStatus; resultId?: string };
 
 const idle: Step = { status: "pending" };
 
-function StepRow({ id, index, label, step }: { id: string; index: number; label: string; step: Step }) {
-  const tone =
-    step.status === "active"
-      ? "bg-primary/10"
-      : step.status === "failed"
-        ? "bg-error/10"
-        : step.status === "done"
-          ? "text-base-content/70"
-          : "text-base-content/50";
+/** The same vocabulary the other finance templates use for a setup step: `regulated-token`'s StepIcon. */
+function StepIcon({ status }: { status: StepStatus }) {
+  if (status === "active") return <span className="loading loading-spinner loading-xs" aria-hidden />;
+  if (status === "done") return <span className="text-success">✓</span>;
+  if (status === "failed") return <span className="text-error">✕</span>;
+  return <span className="text-base-content/40">•</span>;
+}
+
+function StepRow({ id, label, step }: { id: string; label: string; step: Step }) {
   return (
-    <div
-      id={id}
-      data-status={step.status}
-      className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-box px-3 py-2 text-sm ${tone}`}
-    >
-      <span className="w-5 shrink-0 flex justify-center" aria-hidden>
-        {step.status === "active" && <span className="loading loading-spinner loading-xs" />}
-        {step.status === "done" && <span className="text-success">✓</span>}
-        {step.status === "failed" && <span className="text-error">✗</span>}
-        {/* Not a circle: an empty circle in a list reads as a radio button, and both of these run. */}
-        {step.status === "pending" && <span className="font-mono text-xs text-base-content/40">{index}</span>}
-      </span>
-      <span>{label}</span>
-      {step.status === "done" && step.resultId && (
-        <span className="font-mono text-xs text-base-content/60 ml-auto [overflow-wrap:anywhere]">{step.resultId}</span>
-      )}
-    </div>
+    <li id={id} data-status={step.status} className="flex items-start gap-2 text-sm">
+      <StepIcon status={step.status} />
+      <div className="min-w-0">
+        <p className="m-0">{label}</p>
+        {step.status === "done" && step.resultId && (
+          <p className="m-0 text-xs text-base-content/60 [overflow-wrap:anywhere]">{step.resultId}</p>
+        )}
+      </div>
+    </li>
   );
 }
 
@@ -92,7 +84,7 @@ export function SetupCard({
 
   return (
     <div className={`card bg-base-100 shadow ${step ? "border-2 border-primary" : "border border-base-300"}`}>
-      <div className={`card-body gap-4 ${step ? "p-6" : "p-5"}`}>
+      <div className={`card-body gap-3 ${step ? "p-6" : "p-5"}`}>
         <div>
           {step ? <p className="m-0 text-xs uppercase tracking-wide text-base-content/60">{step.label}</p> : null}
           <h3 className={`card-title ${step ? "text-xl" : "text-base"}`}>{step?.title ?? "Set up desk"}</h3>
@@ -129,15 +121,15 @@ export function SetupCard({
           </div>
         )}
 
-        <div className="flex flex-col gap-0.5">
-          <StepRow id="setup-step-stablecoin" index={1} label="Create the stablecoin" step={stablecoinStep} />
-          <StepRow id="setup-step-investors" index={2} label="Create the demo investors" step={investorsStep} />
-        </div>
+        <ul className="m-0 p-0 list-none flex flex-col gap-2">
+          <StepRow id="setup-step-stablecoin" label="Create the stablecoin" step={stablecoinStep} />
+          <StepRow id="setup-step-investors" label="Create the demo investors" step={investorsStep} />
+        </ul>
 
         <button
           id="setup-desk"
           type="button"
-          className={`btn btn-primary self-start ${step ? "" : "btn-sm"} ${
+          className={`btn btn-primary btn-sm self-start ${
             stablecoinStep.status === "done" && investorsStep.status === "done" ? "hidden" : ""
           }`}
           disabled={

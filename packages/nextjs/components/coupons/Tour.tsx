@@ -281,10 +281,10 @@ function Stepper({
   );
 }
 
-/** A step's transactions, ticked off as they land. */
+/** A step's transactions, ticked off as they land. Same marks the setup card uses. */
 function Checklist({ labels, done, failed }: { labels: string[]; done: number | undefined; failed: boolean }) {
   return (
-    <ol className="m-0 p-0 list-none flex flex-col gap-0.5 text-sm">
+    <ul className="m-0 p-0 list-none flex flex-col gap-2 text-sm">
       {labels.map((label, index) => {
         const state =
           done === undefined || index > done
@@ -297,32 +297,16 @@ function Checklist({ labels, done, failed }: { labels: string[]; done: number | 
                   ? "active"
                   : "done";
         return (
-          <li
-            key={label}
-            data-status={state}
-            className={`flex items-center gap-2.5 rounded-box px-3 py-2 ${
-              state === "active"
-                ? "bg-primary/10"
-                : state === "failed"
-                  ? "bg-error/10"
-                  : state === "done"
-                    ? "text-base-content/70"
-                    : "text-base-content/50"
-            }`}
-          >
-            <span className="w-5 shrink-0 flex justify-center" aria-hidden>
-              {state === "active" ? <span className="loading loading-spinner loading-xs" /> : null}
-              {state === "done" ? <span className="text-success">✓</span> : null}
-              {state === "failed" ? <span className="text-error">✗</span> : null}
-              {/* Not a circle: an empty circle in a list reads as a radio button, and these are
-                  steps that all run, not a choice between them. */}
-              {state === "pending" ? <span className="text-base-content/40 font-mono text-xs">{index + 1}</span> : null}
-            </span>
-            <span>{label}</span>
+          <li key={label} data-status={state} className="flex items-start gap-2">
+            {state === "active" ? <span className="loading loading-spinner loading-xs" aria-hidden /> : null}
+            {state === "done" ? <span className="text-success">✓</span> : null}
+            {state === "failed" ? <span className="text-error">✕</span> : null}
+            {state === "pending" ? <span className="text-base-content/40">•</span> : null}
+            <span className={state === "pending" ? "text-base-content/60" : undefined}>{label}</span>
           </li>
         );
       })}
-    </ol>
+    </ul>
   );
 }
 
@@ -432,21 +416,21 @@ function SetupScreen({ desk, onDone }: { desk: DeskStateResponse; onDone: () => 
 }
 
 function Terms() {
-  const rows: [string, string][] = [
-    ["Face value", `${n(TERMS.faceValue)} a unit`],
-    ["Coupon", `${TERMS.couponRatePercent}% of face value a period`],
-    ["Period", `${TERMS.periodMinutes} minute, standing in for six months`],
-    ["Coupons", `${TERMS.couponCount}, the last also repaying the principal`],
-  ];
   return (
-    <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-      {rows.map(([term, value]) => (
-        <div key={term} className="contents">
-          <dt className="text-base-content/60">{term}</dt>
-          <dd className="m-0 font-semibold">{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="rounded-box border border-base-300 bg-base-200/40 p-4 flex flex-col gap-2">
+      <Label>Terms · fixed when the bond is created</Label>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-xl font-bold">
+          {TERMS.couponCount} coupons, {TERMS.periodMinutes} {TERMS.periodMinutes === 1 ? "minute" : "minutes"} apart
+        </span>
+        <span className="text-sm text-base-content/70">one period standing in for six months</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <span className="badge badge-ghost">{n(TERMS.faceValue)} face value a unit</span>
+        <span className="badge badge-ghost">{TERMS.couponRatePercent}% of face value a period</span>
+        <span className="badge badge-ghost">the last also repays the principal</span>
+      </div>
+    </div>
   );
 }
 
