@@ -56,8 +56,10 @@ async function buildHolderView(id: "A" | "B", label: string, accountId: string, 
 async function buildWalletState(walletEvmAddress?: string): Promise<WalletState> {
   if (!walletEvmAddress) return { kind: "not-connected" };
   const officer3 = getOfficer("3");
-  // A desk with no wallet officer can answer this without the mirror node at all.
-  if (!officer3?.isWallet || !officer3.accountId) return { kind: "not-officer" };
+  // A desk with no wallet officer can answer this without the mirror node at all. Before setup
+  // there is no officer at all, which is not the same thing: this wallet can still become one.
+  if (!officer3) return { kind: "before-setup" };
+  if (!officer3.isWallet || !officer3.accountId) return { kind: "not-officer" };
   try {
     const account = await getMirrorAccount(walletEvmAddress);
     if (!account) return { kind: "not-officer" };
