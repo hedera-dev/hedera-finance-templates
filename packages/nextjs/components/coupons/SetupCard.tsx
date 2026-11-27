@@ -10,16 +10,31 @@ type Step = { status: StepStatus; resultId?: string };
 
 const idle: Step = { status: "pending" };
 
-function StepRow({ id, label, step }: { id: string; label: string; step: Step }) {
+function StepRow({ id, index, label, step }: { id: string; index: number; label: string; step: Step }) {
+  const tone =
+    step.status === "active"
+      ? "bg-primary/10"
+      : step.status === "failed"
+        ? "bg-error/10"
+        : step.status === "done"
+          ? "text-base-content/70"
+          : "text-base-content/50";
   return (
-    <div id={id} data-status={step.status} className="flex items-center gap-2 text-sm">
-      {step.status === "active" && <span className="loading loading-spinner loading-xs" />}
-      {step.status === "done" && <span className="text-success">✓</span>}
-      {step.status === "failed" && <span className="text-error">✗</span>}
-      {step.status === "pending" && <span className="w-3 h-3 rounded-full border border-base-300 inline-block" />}
+    <div
+      id={id}
+      data-status={step.status}
+      className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-box px-3 py-2 text-sm ${tone}`}
+    >
+      <span className="w-5 shrink-0 flex justify-center" aria-hidden>
+        {step.status === "active" && <span className="loading loading-spinner loading-xs" />}
+        {step.status === "done" && <span className="text-success">✓</span>}
+        {step.status === "failed" && <span className="text-error">✗</span>}
+        {/* Not a circle: an empty circle in a list reads as a radio button, and both of these run. */}
+        {step.status === "pending" && <span className="font-mono text-xs text-base-content/40">{index}</span>}
+      </span>
       <span>{label}</span>
       {step.status === "done" && step.resultId && (
-        <span className="font-mono text-xs text-base-content/60">{step.resultId}</span>
+        <span className="font-mono text-xs text-base-content/60 ml-auto [overflow-wrap:anywhere]">{step.resultId}</span>
       )}
     </div>
   );
@@ -77,7 +92,7 @@ export function SetupCard({
 
   return (
     <div className={`card bg-base-100 shadow ${step ? "border-2 border-primary" : "border border-base-300"}`}>
-      <div className={`card-body gap-2 ${step ? "!p-6" : "!p-4"}`}>
+      <div className={`card-body gap-4 ${step ? "p-6" : "p-5"}`}>
         <div>
           {step ? <p className="m-0 text-xs uppercase tracking-wide text-base-content/60">{step.label}</p> : null}
           <h3 className={`card-title ${step ? "text-xl" : "text-base"}`}>{step?.title ?? "Set up desk"}</h3>
@@ -99,29 +114,30 @@ export function SetupCard({
           </p>
         )}
         {desk?.factory && (
-          <p className="text-sm text-base-content/70 m-0">
-            Factory:{" "}
+          <div className="flex items-baseline gap-2 text-sm min-w-0">
+            <span className="text-xs uppercase tracking-wide text-base-content/50 shrink-0">Factory</span>
             <a
               id="factory-address"
               href={getBlockExplorerAddressLink(hederaTestnet, desk.factory.address)}
               target="_blank"
               rel="noreferrer"
-              className="link font-mono text-xs break-all no-underline hover:underline"
+              title={desk.factory.address}
+              className="link link-hover font-mono text-xs truncate"
             >
               {desk.factory.address}
             </a>
-          </p>
+          </div>
         )}
 
-        <div className="flex flex-col gap-1">
-          <StepRow id="setup-step-stablecoin" label="Create the stablecoin" step={stablecoinStep} />
-          <StepRow id="setup-step-investors" label="Create the demo investors" step={investorsStep} />
+        <div className="flex flex-col gap-0.5">
+          <StepRow id="setup-step-stablecoin" index={1} label="Create the stablecoin" step={stablecoinStep} />
+          <StepRow id="setup-step-investors" index={2} label="Create the demo investors" step={investorsStep} />
         </div>
 
         <button
           id="setup-desk"
           type="button"
-          className={`btn btn-primary btn-sm self-start ${
+          className={`btn btn-primary self-start ${step ? "" : "btn-sm"} ${
             stablecoinStep.status === "done" && investorsStep.status === "done" ? "hidden" : ""
           }`}
           disabled={

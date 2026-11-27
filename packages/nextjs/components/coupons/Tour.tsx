@@ -284,7 +284,7 @@ function Stepper({
 /** A step's transactions, ticked off as they land. */
 function Checklist({ labels, done, failed }: { labels: string[]; done: number | undefined; failed: boolean }) {
   return (
-    <ol className="m-0 p-0 list-none flex flex-col gap-1.5 text-sm">
+    <ol className="m-0 p-0 list-none flex flex-col gap-0.5 text-sm">
       {labels.map((label, index) => {
         const state =
           done === undefined || index > done
@@ -297,13 +297,27 @@ function Checklist({ labels, done, failed }: { labels: string[]; done: number | 
                   ? "active"
                   : "done";
         return (
-          <li key={label} data-status={state} className="flex items-center gap-2">
-            {state === "active" ? <span className="loading loading-spinner loading-xs" aria-hidden /> : null}
-            {state === "done" ? <span className="text-success">✓</span> : null}
-            {state === "failed" ? <span className="text-error">✗</span> : null}
-            {state === "pending" ? (
-              <span className="w-3 h-3 rounded-full border border-base-content/30 inline-block" aria-hidden />
-            ) : null}
+          <li
+            key={label}
+            data-status={state}
+            className={`flex items-center gap-2.5 rounded-box px-3 py-2 ${
+              state === "active"
+                ? "bg-primary/10"
+                : state === "failed"
+                  ? "bg-error/10"
+                  : state === "done"
+                    ? "text-base-content/70"
+                    : "text-base-content/50"
+            }`}
+          >
+            <span className="w-5 shrink-0 flex justify-center" aria-hidden>
+              {state === "active" ? <span className="loading loading-spinner loading-xs" /> : null}
+              {state === "done" ? <span className="text-success">✓</span> : null}
+              {state === "failed" ? <span className="text-error">✗</span> : null}
+              {/* Not a circle: an empty circle in a list reads as a radio button, and these are
+                  steps that all run, not a choice between them. */}
+              {state === "pending" ? <span className="text-base-content/40 font-mono text-xs">{index + 1}</span> : null}
+            </span>
             <span>{label}</span>
           </li>
         );
@@ -326,22 +340,38 @@ function NextCoupon({ bond }: { bond: BondData }) {
   const now = useNow();
   const due = Number(bond.dueTime) * 1000;
   const left = Math.max(0, Math.ceil((due - now) / 1000));
+  const period = Number(bond.periodSeconds);
   return (
-    <p id="tour-next-coupon" className="m-0 text-lg">
-      Coupon <strong>{bond.currentCoupon.toString()}</strong> of {bond.couponCount.toString()} is due at{" "}
-      <strong>{new Date(due).toLocaleTimeString()}</strong>
-      {left > 0 ? (
-        <>
-          , in{" "}
-          <strong className="font-mono">
+    <div
+      id="tour-next-coupon"
+      className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-box bg-primary/10 border border-primary/30 p-4"
+    >
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-xs uppercase tracking-wide text-base-content/60">
+          Coupon {bond.currentCoupon.toString()} of {bond.couponCount.toString()} · due at{" "}
+          {new Date(due).toLocaleTimeString()}
+        </span>
+        {left > 0 ? (
+          <span className="font-mono text-4xl font-bold leading-none tabular-nums">
             {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
-          </strong>
-          .
-        </>
-      ) : (
-        <>. The network calls the bond within seconds, and the payment shows below a few seconds later.</>
-      )}
-    </p>
+          </span>
+        ) : (
+          <span className="text-lg font-semibold">Any second now…</span>
+        )}
+      </div>
+      <p className="m-0 flex-1 min-w-48 text-sm text-base-content/80">
+        {left > 0
+          ? "Nobody is watching this clock on your behalf. The network is holding a call it will make on its own."
+          : "The network calls the bond within seconds, and the payment shows below a few seconds later."}
+      </p>
+      {period > 0 ? (
+        <progress
+          className="progress progress-primary h-2 basis-full"
+          value={Math.min(100, Math.max(0, ((period - left) / period) * 100))}
+          max={100}
+        />
+      ) : null}
+    </div>
   );
 }
 
