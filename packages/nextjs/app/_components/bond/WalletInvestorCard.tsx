@@ -88,7 +88,11 @@ export const WalletInvestorCard = ({
         abi: clientBondAbi,
         functionName: "transfer",
         args: [transferTo as `0x${string}`, BigInt(amount)],
-        chain: chains.hederaTestnet,
+        // `chainId`, not `chain`: wagmi spreads the request and then sets `chain` itself from
+        // `chainId`, so a `chain` passed here is overwritten with null — and viem skips its
+        // chain assertion when chain is null. This app is testnet-only everywhere else, so
+        // without this the transfer is signed on whatever chain the wallet is really on.
+        chainId: chains.hederaTestnet.id,
         account: address,
       });
       await publicClient?.waitForTransactionReceipt({ hash });
